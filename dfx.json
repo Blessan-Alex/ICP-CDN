@@ -3,7 +3,8 @@
     "icp_cdn_backend": {
       "candid": "src/icp_cdn_backend/icp_cdn_backend.did",
       "package": "icp_cdn_backend",
-      "type": "rust"
+      "type": "rust",
+      "http": ["src/icp_cdn_backend"]
     },
     "icp_cdn_frontend": {
       "dependencies": [
@@ -12,8 +13,7 @@
       "source": [
         "src/icp_cdn_frontend/dist"
       ],
-      "type": "assets",
-      "workspace": "icp_cdn_frontend"
+      "type": "assets"
     },
     "internet_identity": {
       "candid": "https://github.com/dfinity/internet-identity/releases/latest/download/internet_identity.did",

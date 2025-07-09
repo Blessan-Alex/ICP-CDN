@@ -14,5 +14,9 @@
   "type": "module",
   "workspaces": [
     "src/icp_cdn_frontend"
-  ]
+  ],
+  "dependencies": {
+    "@dfinity/agent": "^2.4.1",
+    "@dfinity/candid": "^2.4.1"
+  }
 }

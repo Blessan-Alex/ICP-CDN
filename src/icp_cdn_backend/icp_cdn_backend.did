@@ -1,3 +1,19 @@
 service : {
     "greet": (text) -> (text) query;
+    "upload_asset": (text, blob) -> (variant { Ok : text; Err : text });
+    "delete_asset": (text) -> (variant { Ok : text; Err : text });
+    "get_asset_info": (text) -> (opt record { 0 : nat64; 1 : text }) query;
+    "list_assets": () -> (vec text) query;
+    "http_request": (record {
+        method: text;
+        url: text;
+        headers: vec record { text; text };
+        body: blob;
+        certificate_version: opt nat16;
+    }) -> (record {
+        status_code: nat16;
+        headers: vec record { text; text };
+        body: blob;
+        streaming_strategy: opt variant { };
+    }) query
 }
