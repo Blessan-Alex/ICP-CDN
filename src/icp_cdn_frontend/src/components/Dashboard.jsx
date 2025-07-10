@@ -127,7 +127,7 @@ export default function Dashboard() {
         setUploadStatus('Starting chunked upload...');
         
         // Step 1: Initiate upload
-        const initResult = await backend.init_upload(path, file.size);
+        const initResult = await backend.start_upload(path);
         if (!initResult.Ok) {
           throw new Error(initResult.Err || 'Failed to initiate upload');
         }
@@ -145,7 +145,7 @@ export default function Dashboard() {
           const chunkBuffer = await chunk.arrayBuffer();
           
           setUploadStatus(`Uploading chunk ${i + 1}/${totalChunks}...`);
-          const uploadResult = await backend.upload_chunk(path, i, Array.from(new Uint8Array(chunkBuffer)));
+          const uploadResult = await backend.upload_chunk(path, Array.from(new Uint8Array(chunkBuffer)));
           if (!uploadResult.Ok) {
             throw new Error(uploadResult.Err || `Failed to upload chunk ${i + 1}`);
           }
@@ -292,7 +292,13 @@ export default function Dashboard() {
           throw new Error(syncResult.Err || 'Failed to sync asset');
         }
         
-        const base64Data = syncResult.Ok;
+        const syncData = syncResult.Ok;
+        // Extract base64 data from "SYNC_DATA:path:base64data" format
+        const parts = syncData.split(':');
+        if (parts.length < 3 || parts[0] !== 'SYNC_DATA') {
+          throw new Error('Invalid sync data format');
+        }
+        const base64Data = parts.slice(2).join(':'); // Rejoin in case base64 contains colons
         const binaryData = atob(base64Data);
         const bytes = new Uint8Array(binaryData.length);
         for (let i = 0; i < binaryData.length; i++) {
