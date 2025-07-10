@@ -6,50 +6,54 @@ import { Folder } from "lucide-react";
 import { BarChart } from "lucide-react";
 
 export const navItems = [
-  { label: "Home", href: "/" },
-  { label: "Dashboard", href: "/dashboard" },
-  { label: "Features", href: "#" },
-  { label: "Pricing", href: "#" },
-  { label: "Docs", href: "#" },
-  { label: "Community", href: "#" },
-  { label: "Get Started", href: "#" },
+  { label: "Home", href: "#home", type: "scroll" },
+  { label: "Features", href: "#features", type: "scroll" },
+  { label: "About Us", href: "#about", type: "scroll" },
+  { label: "Mission", href: "#mission", type: "scroll" },
 ];
+
+export const dashboardNavItem = {
+  label: "Dashboard", 
+  href: "/dashboard", 
+  type: "page"
+};
+
 export const features = [
   {
     icon: <Rocket />,
-    text: "Decentralized Edge Delivery",
+    text: "Decentralized File Storage",
     description:
-      "Distribute your content across global network of ICP nodes, ensuring lightening- fast access for users anywhere in the world.By leveraging proximity to end users, we minimize latency and maximize load times.",
+      "Store your files securely on the Internet Computer blockchain with cryptographic verification. Every file is tamper-proof and distributed across multiple nodes for maximum reliability and global accessibility.",
   },
   {
     icon: <ShieldCheck />,
-    text: "Immutable and Secure",
+    text: "User Authentication & Isolation",
     description:
-      "Every file is cryptographically verified and tamper-proof, guaranteeing the integrity of your data.This means once stored, your content cannot be altered or deleted by malicious actors.",
+      "Built-in Internet Identity authentication ensures your files are private and isolated. Each user's data is cryptographically separated, preventing unauthorized access and maintaining complete privacy.",
   },
   {
     icon: <Settings />,
-    text: "Auto-Scaling & Self-healing",
+    text: "Chunked Upload & Download",
     description:
-      "No more manual infrastructure headaches- our network grows and recovers automatically to meet demand.As your dApp’s traffic spikes, additional edge nodes seamlessly handle the load.",
+      "Handle large files efficiently with automatic chunked uploads and downloads. Files over 500KB are automatically split into manageable chunks for reliable transfer and optimal performance.",
   },
   {
     icon: <Shield />,
-    text: "Built-in Redundancy",
+    text: "Global Asset Distribution",
     description:
-      "Files are replicated across multiple nodes, eliminating single points of failure and keeping your content always online.Even if a node fails, your users won’t notice any disruption.",
+      "Files are served through dedicated asset canisters with HTTP certification, ensuring fast global access. Your content is available worldwide with minimal latency and maximum reliability.",
   },
   {
     icon: <Folder />,
-    text: "Programmable Caching Policies",
+    text: "Comprehensive File Management",
     description:
-      "Customize how and where your content is cached, optimizing for performance and cost.Set rules to prioritize popular files or aggressively cache near key user bases.Adapt your delivery strategy to match your app’s unique needs.",
+      "Upload, view, delete, and share files with unique asset links. Support for images, videos, documents, web assets, and fonts with automatic content type detection and management.",
   },
   {
     icon: <BarChart />,
-    text: "Real-time Analytics",
+    text: "Real-time Dashboard",
     description:
-      "Monitor file requests, cache performance, and geographic distribution through an intuitive dashboard. Gain insights into user behavior and traffic patterns at a glance.",
+      "Monitor your CDN usage with an intuitive dashboard showing file counts, storage usage, and network statistics. Track your decentralized content delivery performance in real-time.",
   },
 ];
 
@@ -111,25 +115,19 @@ export const pricingOptions = [
 ];
 
 export const resourcesLinks = [
-  { href: "#", text: "Getting Started" },
   { href: "#", text: "Documentation" },
-  { href: "#", text: "Tutorials" },
   { href: "#", text: "API Reference" },
-  { href: "#", text: "Community Forums" },
+  { href: "#", text: "GitHub" },
 ];
 
 export const platformLinks = [
   { href: "#", text: "Features" },
-  { href: "#", text: "Supported Devices" },
-  { href: "#", text: "System Requirements" },
-  { href: "#", text: "Downloads" },
-  { href: "#", text: "Release Notes" },
+  { href: "#", text: "Pricing" },
+  { href: "#", text: "Support" },
 ];
 
 export const communityLinks = [
-  { href: "#", text: "Events" },
-  { href: "#", text: "Meetups" },
-  { href: "#", text: "Conferences" },
-  { href: "#", text: "Hackathons" },
-  { href: "#", text: "Jobs" },
+  { href: "#", text: "Discord" },
+  { href: "#", text: "Twitter" },
+  { href: "#", text: "Blog" },
 ];

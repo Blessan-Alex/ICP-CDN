@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::cell::RefCell;
+use std::collections::BTreeMap;
 
 // --- ICP HTTP interface types ---
 use candid::{CandidType, Deserialize};
@@ -32,24 +33,34 @@ pub enum StreamingStrategy {
 }
 // --- End ICP HTTP interface types ---
 
-use ic_cdk::api::set_certified_data;
+use ic_cdk::api::{set_certified_data, caller};
 use ic_certified_map::{RbTree, AsHashTree};
+use ic_stable_structures::{StableBTreeMap, memory_manager::{MemoryManager, VirtualMemory, MemoryId}, DefaultMemoryImpl};
 
 type FilePath = String;
 type FileContent = Vec<u8>;
 type AssetStore = HashMap<FilePath, FileContent>;
 
+// Helper function to create user-specific keys
+fn user_key(path: &str) -> String {
+    let caller_principal = caller().to_string();
+    format!("{}:{}", caller_principal, path)
+}
+
 thread_local! {
-    static ASSETS: RefCell<AssetStore> = RefCell::default();
+    static MEMORY_MANAGER: RefCell<MemoryManager<DefaultMemoryImpl>> =
+        RefCell::new(MemoryManager::init(DefaultMemoryImpl::default()));
+    static ASSETS: RefCell<StableBTreeMap<String, Vec<u8>, VirtualMemory<DefaultMemoryImpl>>> =
+        RefCell::new(StableBTreeMap::init(
+            MEMORY_MANAGER.with(|m| m.borrow().get(MemoryId::new(0)))
+        ));
     static CERTIFIED_MAP: RefCell<RbTree<Vec<u8>, [u8; 32]>> = RefCell::new(RbTree::new());
+    static IN_PROGRESS_UPLOADS: RefCell<BTreeMap<String, Vec<u8>>> = RefCell::new(BTreeMap::new());
 }
 
 #[ic_cdk::init]
 fn init() {
-    // Initialize the asset store
-    ASSETS.with(|assets| {
-        *assets.borrow_mut() = HashMap::new();
-    });
+    // No need to clear ASSETS; stable map persists across upgrades
     CERTIFIED_MAP.with(|map| {
         let root_hash = map.borrow().root_hash();
         set_certified_data(&root_hash);
@@ -64,11 +75,12 @@ fn upload_asset(path: FilePath, content: FileContent) -> Result<String, String> 
     if content.is_empty() {
         return Err("Content cannot be empty".to_string());
     }
+    let user_path = user_key(&path);
     ASSETS.with(|assets| {
-        assets.borrow_mut().insert(path.clone(), content.clone());
+        assets.borrow_mut().insert(user_path.clone(), content.clone());
     });
     CERTIFIED_MAP.with(|map| {
-        map.borrow_mut().insert(path.clone().into_bytes(), ic_certified_map::leaf_hash(&content));
+        map.borrow_mut().insert(user_path.clone().into_bytes(), ic_certified_map::leaf_hash(&content));
         let root_hash = map.borrow().root_hash();
         set_certified_data(&root_hash);
     });
@@ -80,9 +92,10 @@ fn delete_asset(path: FilePath) -> Result<String, String> {
     if path.is_empty() {
         return Err("Path cannot be empty".to_string());
     }
-    let removed = ASSETS.with(|assets| assets.borrow_mut().remove(&path));
+    let user_path = user_key(&path);
+    let removed = ASSETS.with(|assets| assets.borrow_mut().remove(&user_path));
     CERTIFIED_MAP.with(|map| {
-        map.borrow_mut().delete(&path.clone().into_bytes());
+        map.borrow_mut().delete(&user_path.clone().into_bytes());
         let root_hash = map.borrow().root_hash();
         set_certified_data(&root_hash);
     });
@@ -94,9 +107,10 @@ fn delete_asset(path: FilePath) -> Result<String, String> {
 
 #[ic_cdk::query]
 fn get_asset_info(path: FilePath) -> Option<(u64, String)> {
+    let user_path = user_key(&path);
     ASSETS.with(|assets| {
         let assets = assets.borrow();
-        assets.get(&path).map(|content| {
+        assets.get(&user_path).map(|content| {
             let size = content.len() as u64;
             let content_type = infer_content_type(&path);
             (size, content_type)
@@ -106,55 +120,216 @@ fn get_asset_info(path: FilePath) -> Option<(u64, String)> {
 
 #[ic_cdk::query]
 fn list_assets() -> Vec<String> {
+    let caller_principal = caller().to_string();
     ASSETS.with(|assets| {
         let assets = assets.borrow();
-        assets.keys().cloned().collect()
+        assets.keys()
+            .filter(|k| k.starts_with(&format!("{}:", caller_principal)))
+            .map(|k| {
+                // Remove the user prefix to return just the path
+                k.splitn(2, ':').nth(1).unwrap_or(&k).to_string()
+            })
+            .collect()
     })
 }
 
-// HTTP request handler for serving assets
-#[ic_cdk::query]
-fn http_request(req: HttpRequest) -> HttpResponse {
-    let path = req.url.clone();
-    // Handle root path
-    if path == "/" || path.is_empty() {
-        return HttpResponse {
-            status_code: 200,
-            headers: vec![
-                HttpHeader("Content-Type".to_string(), "text/html".to_string()),
-                HttpHeader("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-            ],
-            body: generate_index_page().into_bytes(),
-            streaming_strategy: None,
-        };
+#[ic_cdk::update]
+fn start_upload(path: FilePath) -> Result<String, String> {
+    if path.is_empty() {
+        return Err("Path cannot be empty".to_string());
     }
-    ASSETS.with(|assets| {
-        let assets = assets.borrow();
-        if let Some(asset_content) = assets.get(&path) {
-            let content_type = infer_content_type(&path);
-            let headers = vec![
-                HttpHeader("Content-Type".to_string(), content_type),
-                HttpHeader("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-                HttpHeader("Cache-Control".to_string(), "public, max-age=31536000".to_string()),
-            ];
-            HttpResponse {
-                status_code: 200,
-                headers,
-                body: asset_content.clone(),
-                streaming_strategy: None,
-            }
+    let user_path = user_key(&path);
+    IN_PROGRESS_UPLOADS.with(|uploads| {
+        uploads.borrow_mut().insert(user_path.clone(), Vec::new());
+    });
+    Ok(format!("Started upload for {}", path))
+}
+
+#[ic_cdk::update]
+fn upload_chunk(path: FilePath, chunk: FileContent) -> Result<String, String> {
+    if path.is_empty() {
+        return Err("Path cannot be empty".to_string());
+    }
+    let user_path = user_key(&path);
+    IN_PROGRESS_UPLOADS.with(|uploads| {
+        let mut uploads = uploads.borrow_mut();
+        if let Some(buf) = uploads.get_mut(&user_path) {
+            buf.extend_from_slice(&chunk);
+            Ok(format!("Chunk uploaded for {} ({} bytes)", path, chunk.len()))
         } else {
-            HttpResponse {
-                status_code: 404,
-                headers: vec![
-                    HttpHeader("Content-Type".to_string(), "text/plain".to_string()),
-                    HttpHeader("Access-Control-Allow-Origin".to_string(), "*".to_string()),
-                ],
-                body: format!("Asset not found: {}", path).into_bytes(),
-                streaming_strategy: None,
-            }
+            Err("No upload session found for this path".to_string())
         }
     })
+}
+
+#[ic_cdk::update]
+fn commit_upload(path: FilePath) -> Result<String, String> {
+    if path.is_empty() {
+        return Err("Path cannot be empty".to_string());
+    }
+    let user_path = user_key(&path);
+    let content = IN_PROGRESS_UPLOADS.with(|uploads| uploads.borrow_mut().remove(&user_path));
+    if let Some(content) = content {
+        ASSETS.with(|assets| {
+            assets.borrow_mut().insert(user_path.clone(), content.clone());
+        });
+        CERTIFIED_MAP.with(|map| {
+            map.borrow_mut().insert(user_path.clone().into_bytes(), ic_certified_map::leaf_hash(&content));
+            let root_hash = map.borrow().root_hash();
+            set_certified_data(&root_hash);
+        });
+        Ok(format!("Upload committed for {}", path))
+    } else {
+        Err("No upload session found for this path".to_string())
+    }
+}
+
+#[ic_cdk::update]
+fn abort_upload(path: FilePath) -> Result<String, String> {
+    if path.is_empty() {
+        return Err("Path cannot be empty".to_string());
+    }
+    let user_path = user_key(&path);
+    let removed = IN_PROGRESS_UPLOADS.with(|uploads| uploads.borrow_mut().remove(&user_path));
+    if removed.is_some() {
+        Ok(format!("Upload aborted for {}", path))
+    } else {
+        Err("No upload session found for this path".to_string())
+    }
+}
+
+#[ic_cdk::update]
+fn sync_asset_to_frontend(path: FilePath) -> Result<String, String> {
+    if path.is_empty() {
+        return Err("Path cannot be empty".to_string());
+    }
+
+    let user_path = user_key(&path);
+    // Get the asset content from stable storage
+    let content = ASSETS.with(|assets| {
+        let assets = assets.borrow();
+        assets.get(&user_path).map(|v| v.clone())
+    });
+
+    match content {
+        Some(content) => {
+            // Check if content is too large for single response
+            if content.len() > 2_000_000 { // 2MB limit
+                return Err("File too large for single sync. Use chunked download.".to_string());
+            }
+            // Return the content as base64 for the frontend to save
+            let base64_content = base64_encode(&content);
+            Ok(format!("SYNC_DATA:{}:{}", path, base64_content))
+        },
+        None => Err(format!("Asset not found: {}", path))
+    }
+}
+
+#[ic_cdk::query]
+fn get_asset_chunk(path: FilePath, chunk_index: u32) -> Result<Vec<u8>, String> {
+    if path.is_empty() {
+        return Err("Path cannot be empty".to_string());
+    }
+
+    let user_path = user_key(&path);
+    let chunk_size = 1_000_000; // 1MB chunks for download
+    
+    let content = ASSETS.with(|assets| {
+        let assets = assets.borrow();
+        assets.get(&user_path).map(|v| v.clone())
+    });
+
+    match content {
+        Some(content) => {
+            let start = (chunk_index as usize) * chunk_size;
+            if start >= content.len() {
+                return Err("Chunk index out of bounds".to_string());
+            }
+            let end = std::cmp::min(start + chunk_size, content.len());
+            Ok(content[start..end].to_vec())
+        },
+        None => Err(format!("Asset not found: {}", path))
+    }
+}
+
+#[ic_cdk::query]
+fn get_asset_chunk_count(path: FilePath) -> Result<u32, String> {
+    if path.is_empty() {
+        return Err("Path cannot be empty".to_string());
+    }
+
+    let user_path = user_key(&path);
+    let chunk_size = 1_000_000; // 1MB chunks for download
+    
+    let content = ASSETS.with(|assets| {
+        let assets = assets.borrow();
+        assets.get(&user_path).map(|v| v.len())
+    });
+
+    match content {
+        Some(size) => {
+            let chunk_count = (size + chunk_size - 1) / chunk_size; // Ceiling division
+            Ok(chunk_count as u32)
+        },
+        None => Err(format!("Asset not found: {}", path))
+    }
+}
+
+// Helper function to parse query parameters from a URL string
+fn get_query_param(url: &str, param: &str) -> Option<String> {
+    // Find the '?' in the URL
+    let query_start = url.find('?')?;
+    let query = &url[query_start + 1..];
+    for pair in query.split('&') {
+        let mut parts = pair.splitn(2, '=');
+        if let (Some(key), Some(value)) = (parts.next(), parts.next()) {
+            if key == param {
+                // Decode percent-encoding if needed
+                return Some(percent_decode(value));
+            }
+        }
+    }
+    None
+}
+
+// Simple percent-decoding for URL values (handles %XX)
+fn percent_decode(input: &str) -> String {
+    let mut result = String::new();
+    let mut chars = input.chars();
+    while let Some(c) = chars.next() {
+        if c == '%' {
+            let hi = chars.next();
+            let lo = chars.next();
+            if let (Some(hi), Some(lo)) = (hi, lo) {
+                if let (Some(hi), Some(lo)) = (hi.to_digit(16), lo.to_digit(16)) {
+                    result.push((hi * 16 + lo) as u8 as char);
+                    continue;
+                }
+            }
+            // If percent-encoding is invalid, just add '%'
+            result.push('%');
+        } else if c == '+' {
+            result.push(' ');
+        } else {
+            result.push(c);
+        }
+    }
+    result
+}
+
+#[ic_cdk::query]
+fn http_request(req: HttpRequest) -> HttpResponse {
+    // Backend canister only serves the index page
+    // Assets are served by the separate asset canister
+    HttpResponse {
+        status_code: 200,
+        headers: vec![
+            HttpHeader("Content-Type".to_string(), "text/html".to_string()),
+            HttpHeader("Access-Control-Allow-Origin".to_string(), "*".to_string()),
+        ],
+        body: generate_index_page().into_bytes(),
+        streaming_strategy: None,
+    }
 }
 
 fn infer_content_type(path: &str) -> String {
@@ -184,27 +359,13 @@ fn infer_content_type(path: &str) -> String {
 }
 
 fn generate_index_page() -> String {
-    let assets = ASSETS.with(|assets| {
-        let assets = assets.borrow();
-        assets.keys().cloned().collect::<Vec<String>>()
-    });
-    
-    let assets_list = if assets.is_empty() {
-        "<p>No assets uploaded yet.</p>".to_string()
-    } else {
-        assets.iter()
-            .map(|path| format!("<li><a href=\"{}\">{}</a></li>", path, path))
-            .collect::<Vec<String>>()
-            .join("\n")
-    };
-    
     format!(
         r#"<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ICP CDN - Content Delivery Network</title>
+    <title>ICP CDN - Backend API</title>
     <style>
         body {{
             font-family: Arial, sans-serif;
@@ -224,74 +385,109 @@ fn generate_index_page() -> String {
             text-align: center;
             margin-bottom: 30px;
         }}
-        .upload-section {{
+        .info-section {{
             background: #f8f9fa;
             padding: 20px;
             border-radius: 5px;
             margin-bottom: 30px;
         }}
-        .assets-section h3 {{
-            color: #555;
-            margin-bottom: 15px;
-        }}
-        ul {{
-            list-style: none;
-            padding: 0;
-        }}
-        li {{
-            padding: 8px 0;
-            border-bottom: 1px solid #eee;
-        }}
-        a {{
-            color: #007bff;
-            text-decoration: none;
-        }}
-        a:hover {{
-            text-decoration: underline;
-        }}
-        .status {{
-            padding: 10px;
+        .architecture {{
+            background: #e3f2fd;
+            padding: 20px;
             border-radius: 5px;
+            margin-bottom: 30px;
+        }}
+        .endpoints {{
+            background: #fff3e0;
+            padding: 20px;
+            border-radius: 5px;
+        }}
+        code {{
+            background: #f5f5f5;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: monospace;
+        }}
+        .endpoint {{
             margin: 10px 0;
-        }}
-        .success {{
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }}
-        .error {{
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+            padding: 10px;
+            background: #f9f9f9;
+            border-left: 4px solid #007bff;
         }}
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🌐 ICP CDN - Decentralized Content Delivery Network</h1>
+        <h1>🌐 ICP CDN - Backend API</h1>
         
-        <div class="upload-section">
-            <h3>📤 Upload Assets</h3>
-            <p>This is a decentralized CDN running on the Internet Computer. Upload your assets and they'll be served globally with automatic caching.</p>
-            <p><strong>Status:</strong> Ready for uploads</p>
+        <div class="info-section">
+            <h3>📋 About This Service</h3>
+            <p>This is the backend API for the ICP CDN (Content Delivery Network). It handles user authentication, file uploads, and data management.</p>
+            <p><strong>Status:</strong> ✅ Backend API is running</p>
         </div>
         
-        <div class="assets-section">
-            <h3>📁 Stored Assets ({})</h3>
-            <ul>
-                {}
-            </ul>
+        <div class="architecture">
+            <h3>🏗️ Architecture</h3>
+            <p><strong>Backend Canister:</strong> This canister - handles user data, authentication, and file management</p>
+            <p><strong>Asset Canister:</strong> Separate canister that serves static files publicly</p>
+            <p><strong>Frontend:</strong> React application with Internet Identity authentication</p>
+        </div>
+        
+        <div class="endpoints">
+            <h3>🔗 API Endpoints</h3>
+            <div class="endpoint">
+                <strong>upload_asset(path, content)</strong> - Upload a file to user's storage
+            </div>
+            <div class="endpoint">
+                <strong>list_assets()</strong> - List user's uploaded files
+            </div>
+            <div class="endpoint">
+                <strong>delete_asset(path)</strong> - Delete a user's file
+            </div>
+            <div class="endpoint">
+                <strong>sync_asset_to_frontend(path)</strong> - Get file data for frontend sync
+            </div>
         </div>
         
         <div style="text-align: center; margin-top: 30px; color: #666;">
             <p>Powered by Internet Computer Protocol (ICP)</p>
+            <p><a href="http://127.0.0.1:4943/?canisterId=ucwa4-rx777-77774-qaada-cai" target="_blank">🌐 Access Frontend</a></p>
         </div>
     </div>
 </body>
-</html>"#,
-        assets.len(),
-        assets_list
+</html>"#
     )
+}
+
+// Add base64 encoding function
+fn base64_encode(data: &[u8]) -> String {
+    let mut result = String::new();
+    let alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    
+    let mut i = 0;
+    while i < data.len() {
+        let mut chunk = [0u8; 3];
+        let chunk_size = std::cmp::min(3, data.len() - i);
+        chunk[..chunk_size].copy_from_slice(&data[i..i + chunk_size]);
+        
+        let b1 = chunk[0];
+        let b2 = if chunk_size > 1 { chunk[1] } else { 0 };
+        let b3 = if chunk_size > 2 { chunk[2] } else { 0 };
+        
+        let c1 = (b1 >> 2) as usize;
+        let c2 = (((b1 & 0x03) << 4) | (b2 >> 4)) as usize;
+        let c3 = if chunk_size > 1 { (((b2 & 0x0f) << 2) | (b3 >> 6)) as usize } else { 64 };
+        let c4 = if chunk_size > 2 { (b3 & 0x3f) as usize } else { 64 };
+        
+        result.push(alphabet.chars().nth(c1).unwrap());
+        result.push(alphabet.chars().nth(c2).unwrap());
+        result.push(if c3 == 64 { '=' } else { alphabet.chars().nth(c3).unwrap() });
+        result.push(if c4 == 64 { '=' } else { alphabet.chars().nth(c4).unwrap() });
+        
+        i += 3;
+    }
+    
+    result
 }
 
 // Keep the original greet function for compatibility

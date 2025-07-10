@@ -1,15 +1,62 @@
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import logo from "../assets/logo.png";
-import { navItems } from "../constants";
-import { Link } from "react-router-dom";
+import { navItems, dashboardNavItem } from "../constants";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "../AuthContext";
+import { login, logout } from "../auth";
 
 const Navbar = () => {
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const { isLoggedIn, logout: handleLogout, forceCheckAuth } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const toggleNavbar = () => {
     setMobileDrawerOpen(!mobileDrawerOpen);
   };
+
+  const handleAuthClick = async () => {
+    if (isLoggedIn) {
+      try {
+        await handleLogout();
+        await forceCheckAuth();
+        navigate('/');
+      } catch (error) {
+        console.error('Logout failed:', error);
+      }
+    } else {
+      try {
+        await login();
+        await forceCheckAuth();
+        navigate('/dashboard');
+      } catch (error) {
+        console.error('Login failed:', error);
+        alert('Login failed. Please try again.');
+      }
+    }
+  };
+
+  const handleNavClick = (href, type) => {
+    if (type === "scroll") {
+      // If on dashboard, show message that they need to logout first
+      if (location.pathname === '/dashboard') {
+        alert('Please logout first to access the home page sections.');
+        return;
+      }
+      // Smooth scroll to section
+      const element = document.querySelector(href);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth' });
+      }
+    } else if (type === "page") {
+      // Regular navigation
+      navigate(href);
+    }
+    setMobileDrawerOpen(false);
+  };
+
+  const isOnDashboard = location.pathname === '/dashboard';
 
   return (
     <nav className="sticky top-0 z-50 py-3 backdrop-blur-lg border-b border-neutral-700/80">
@@ -19,49 +66,103 @@ const Navbar = () => {
             <img className="h-10 w-10 mr-2" src={logo} alt="Logo" />
             <span className="text-xl tracking-tight">CanisterDrop</span>
           </div>
-          <ul className="hidden lg:flex ml-14 space-x-12">
-            {navItems.map((item, index) => (
-              <li key={index}>
-                <Link to={item.href}>{item.label}</Link>
-              </li>
-            ))}
-          </ul>
-          <div className="hidden lg:flex justify-center space-x-12 items-center">
-            <a href="#" className="py-2 px-3 border rounded-md">
-              Sign In
-            </a>
-            <a
-              href="#"
-              className="bg-gradient-to-r from-orange-500 to-orange-800 py-2 px-3 rounded-md"
+          
+          {/* Desktop Navigation */}
+          <div className="hidden lg:flex items-center space-x-8">
+            {/* Home Page Links Group */}
+            <div className="flex items-center space-x-8">
+              {navItems.map((item, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleNavClick(item.href, item.type)}
+                  className={`transition-colors duration-200 cursor-pointer ${
+                    isOnDashboard 
+                      ? 'text-neutral-500 cursor-not-allowed opacity-50' 
+                      : 'hover:text-orange-500'
+                  }`}
+                  disabled={isOnDashboard}
+                  title={isOnDashboard ? 'Logout to access home page sections' : item.label}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+            
+            {/* Separator */}
+            <div className="w-px h-6 bg-neutral-600"></div>
+            
+            {/* Dashboard Link - Unique Styling */}
+            <button
+              onClick={() => handleNavClick(dashboardNavItem.href, dashboardNavItem.type)}
+              className={`py-2 px-4 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 ${
+                isOnDashboard
+                  ? 'bg-orange-600 text-white cursor-default'
+                  : 'bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800'
+              }`}
             >
-              Create an account
-            </a>
+              {dashboardNavItem.label}
+            </button>
+            
+            {/* Auth Button */}
+            <button
+              onClick={handleAuthClick}
+              className="border border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white py-2 px-4 rounded-lg transition-all duration-300"
+            >
+              {isLoggedIn ? 'Logout' : 'Login'}
+            </button>
           </div>
-          <div className="lg:hidden md:flex flex-col justify-end">
+          
+          {/* Mobile Menu Button */}
+          <div className="lg:hidden">
             <button onClick={toggleNavbar}>
               {mobileDrawerOpen ? <X /> : <Menu />}
             </button>
           </div>
         </div>
+        
+        {/* Mobile Navigation */}
         {mobileDrawerOpen && (
-          <div className="fixed right-0 z-20 bg-neutral-900 w-full p-12 flex flex-col justify-center items-center lg:hidden">
-            <ul>
+          <div className="lg:hidden">
+            <div className="px-2 pt-2 pb-3 space-y-1">
+              {/* Home Page Links */}
               {navItems.map((item, index) => (
-                <li key={index} className="py-4">
-                  <Link to={item.href}>{item.label}</Link>
-                </li>
+                <button
+                  key={index}
+                  onClick={() => handleNavClick(item.href, item.type)}
+                  className={`block px-3 py-2 text-base font-medium transition-colors duration-200 cursor-pointer ${
+                    isOnDashboard 
+                      ? 'text-neutral-500 cursor-not-allowed opacity-50' 
+                      : 'hover:text-orange-500'
+                  }`}
+                  disabled={isOnDashboard}
+                  title={isOnDashboard ? 'Logout to access home page sections' : item.label}
+                >
+                  {item.label}
+                </button>
               ))}
-            </ul>
-            <div className="flex space-x-6">
-              <a href="#" className="py-2 px-3 border rounded-md">
-                Sign In
-              </a>
-              <a
-                href="#"
-                className="py-2 px-3 rounded-md bg-gradient-to-r from-orange-500 to-orange-800"
+              
+              {/* Separator */}
+              <div className="border-t border-neutral-700 my-2"></div>
+              
+              {/* Dashboard Link */}
+              <button
+                onClick={() => handleNavClick(dashboardNavItem.href, dashboardNavItem.type)}
+                className={`block w-full text-left px-3 py-2 text-base font-medium rounded-lg ${
+                  isOnDashboard
+                    ? 'bg-orange-600 text-white cursor-default'
+                    : 'bg-gradient-to-r from-orange-500 to-orange-700'
+                }`}
               >
-                Create an account
-              </a>
+                {dashboardNavItem.label}
+              </button>
+              
+              {/* Auth Button */}
+              <button
+                onClick={handleAuthClick}
+                className="block w-full text-left px-3 py-2 text-base font-medium border border-orange-500 text-orange-500 rounded-lg"
+              >
+                {isLoggedIn ? 'Logout' : 'Login'}
+              </button>
             </div>
           </div>
         )}

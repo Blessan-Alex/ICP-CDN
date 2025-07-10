@@ -1,77 +1,213 @@
-import React, { useState, useEffect } from 'react';
-import logo from '../assets/logo.png';
-// Import createActor and canisterId from the generated declarations
+import React, { useState, useEffect, useRef } from 'react';
+import { useAuth } from '../AuthContext';
 import { createActor, canisterId } from '../canister_id_patch';
+import { HttpAgent } from '@dfinity/agent';
+import { initAuth, getIdentity } from '../auth';
+import { Upload, FileText, Trash2, Copy, Eye, Download, Cloud, Zap, Shield } from 'lucide-react';
 
-const backend = createActor(canisterId, {
-  agentOptions: {
-    host: "http://127.0.0.1:4943"
-  }
-});
-
-const getAssetUrl = (path) => `http://${canisterId}.localhost:4943${path}`;
+const assetCanisterId = "ucwa4-rx777-77774-qaada-cai"; // asset canister
+const getAssetUrl = (path) => {
+  const filename = path && path.split ? path.split('/').pop() : 'unknown';
+  return `http://${assetCanisterId}.localhost:4943/assets/${filename}`;
+};
 
 export default function Dashboard() {
+  const { principal, isLoggedIn } = useAuth();
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState('');
   const [assets, setAssets] = useState([]);
   const [file, setFile] = useState(null);
   const [path, setPath] = useState('');
   const [deleting, setDeleting] = useState('');
   const [copiedIndex, setCopiedIndex] = useState(null);
+  const backendRef = useRef(null);
+  const abortControllerRef = useRef(null);
+  
+  // Chunk size for uploads (500KB chunks to avoid payload limits)
+  const CHUNK_SIZE = 512 * 1024;
 
-  // Fetch asset list on mount
+  // Re-create backend actor with authenticated identity when principal changes
   useEffect(() => {
-    fetchAssets();
-  }, []);
+    const initBackend = async () => {
+      if (isLoggedIn && principal) {
+        try {
+          await initAuth();
+          const identity = getIdentity();
+          const agent = new HttpAgent({ identity });
+          const backend = createActor(canisterId, { agent });
+          backendRef.current = backend;
+          
+          // Load assets with full info
+          await loadAssetsWithInfo(backend);
+        } catch (error) {
+          console.error('Failed to initialize backend:', error);
+        }
+      }
+    };
+    
+    initBackend();
+  }, [isLoggedIn, principal]);
 
-  async function fetchAssets() {
+  // Function to load assets with full information
+  const loadAssetsWithInfo = async (backend) => {
     try {
       const assetPaths = await backend.list_assets();
-      const assetInfos = await Promise.all(
-        assetPaths.map(async (p) => {
-          const info = await backend.get_asset_info(p);
-          return {
-            path: p,
-            size: info && info.length > 0 ? info[0][0] : 0,
-            type: info && info.length > 0 ? info[0][1] : 'unknown',
-          };
+      const assetsWithInfo = await Promise.all(
+        assetPaths.map(async (path) => {
+          const assetInfo = await backend.get_asset_info(path);
+          if (assetInfo && assetInfo.length > 0) {
+            return {
+              path: path,
+              size: assetInfo[0][0], // BigInt size
+              type: assetInfo[0][1]  // String type
+            };
+          } else {
+            return {
+              path: path,
+              size: BigInt(0),
+              type: 'unknown'
+            };
+          }
         })
       );
-      setAssets(assetInfos);
-    } catch (e) {
+      setAssets(assetsWithInfo);
+    } catch (error) {
+      console.error('Failed to load assets with info:', error);
       setAssets([]);
     }
-  }
+  };
 
   const handleFileChange = (e) => {
-    setFile(e.target.files[0]);
-    setPath(e.target.files[0] ? `/assets/${e.target.files[0].name}` : '');
+    const selectedFile = e.target.files[0];
+    if (selectedFile) {
+      setFile(selectedFile);
+      // Auto-generate path if not set
+      if (!path) {
+        const filename = selectedFile.name;
+        setPath(`/assets/${filename}`);
+      }
+    }
   };
 
   const handleUpload = async () => {
-    if (!file || !path) return;
-    setUploading(true);
-    setUploadStatus('Uploading...');
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const content = Array.from(new Uint8Array(arrayBuffer));
-      const result = await backend.upload_asset(path, content);
-      if (result.Ok) {
-        setUploadStatus('Upload successful!');
-        await fetchAssets();
-      } else {
-        setUploadStatus('Upload failed: ' + (result.Err || 'Unknown error'));
-      }
-    } catch (e) {
-      setUploadStatus('Upload failed: ' + e.message);
+    if (!isLoggedIn) {
+      alert('Please log in to upload files');
+      return;
     }
+    
+    if (!file || !path) {
+      alert('Please select a file and specify a path');
+      return;
+    }
+    
+    setUploading(true);
+    setUploadProgress(0);
+    setUploadStatus('Starting upload...');
+    abortControllerRef.current = new AbortController();
+    
+    try {
+      const backend = backendRef.current;
+      if (!backend) {
+        throw new Error('No authenticated backend available');
+      }
+      
+      if (file.size <= CHUNK_SIZE) {
+        // Small file - single upload
+        setUploadStatus('Uploading file...');
+        const fileBuffer = await file.arrayBuffer();
+        const result = await backend.upload_asset(path, Array.from(new Uint8Array(fileBuffer)));
+        if (!result.Ok) {
+          throw new Error(result.Err || 'Upload failed');
+        }
+        setUploadProgress(100);
+        setUploadStatus('✅ Upload successful!');
+      } else {
+        // Large file - chunked upload
+        setUploadStatus('Starting chunked upload...');
+        
+        // Step 1: Initiate upload
+        const initResult = await backend.init_upload(path, file.size);
+        if (!initResult.Ok) {
+          throw new Error(initResult.Err || 'Failed to initiate upload');
+        }
+        
+        // Step 2: Upload chunks
+        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+        for (let i = 0; i < totalChunks; i++) {
+          if (abortControllerRef.current?.signal.aborted) {
+            throw new Error('Upload cancelled');
+          }
+          
+          const start = i * CHUNK_SIZE;
+          const end = Math.min(start + CHUNK_SIZE, file.size);
+          const chunk = file.slice(start, end);
+          const chunkBuffer = await chunk.arrayBuffer();
+          
+          setUploadStatus(`Uploading chunk ${i + 1}/${totalChunks}...`);
+          const uploadResult = await backend.upload_chunk(path, i, Array.from(new Uint8Array(chunkBuffer)));
+          if (!uploadResult.Ok) {
+            throw new Error(uploadResult.Err || `Failed to upload chunk ${i + 1}`);
+          }
+          
+          const progress = ((i + 1) / totalChunks) * 100;
+          setUploadProgress(progress);
+        }
+        
+        if (abortControllerRef.current?.signal.aborted) {
+          throw new Error('Upload cancelled');
+        }
+        
+        // Step 3: Commit upload
+        setUploadStatus('Finalizing upload...');
+        const commitResult = await backend.commit_upload(path);
+        if (!commitResult.Ok) {
+          throw new Error(commitResult.Err || 'Failed to commit upload');
+        }
+        
+        setUploadProgress(100);
+        setUploadStatus('✅ Upload committed successfully!');
+      }
+      
+      // Refresh assets list
+      await loadAssetsWithInfo(backend);
+      
+      // Reset form
+      setFile(null);
+      setPath('');
+      
+    } catch (e) {
+      if (e.message !== 'Upload cancelled') {
+        setUploadStatus('❌ Upload failed: ' + e.message);
+        alert('Upload failed: ' + e.message);
+      }
+    }
+    
     setUploading(false);
+    abortControllerRef.current = null;
+  };
+
+  const handleCancelUpload = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setUploading(false);
+      setUploadStatus('Upload cancelled');
+    }
   };
 
   const handleDelete = async (assetPath) => {
+    if (!isLoggedIn) {
+      alert('Please log in to delete files');
+      return;
+    }
+    
     setDeleting(assetPath);
     try {
+      const backend = backendRef.current;
+      if (!backend) {
+        throw new Error('No authenticated backend available');
+      }
+      
       const result = await backend.delete_asset(assetPath);
       if (result.Ok) {
         setAssets(assets.filter(a => a.path !== assetPath));
@@ -94,114 +230,300 @@ export default function Dashboard() {
     }
   };
 
+  const handleView = async (assetPath, assetType) => {
+    if (!isLoggedIn) {
+      alert('Please log in to view files');
+      return;
+    }
+    
+    try {
+      const backend = backendRef.current;
+      if (!backend) {
+        throw new Error('No authenticated backend available');
+      }
+      
+      // Get asset info first to check size
+      const assetInfo = await backend.get_asset_info(assetPath);
+      if (!assetInfo || assetInfo.length === 0) {
+        alert('Asset not found');
+        return;
+      }
+      
+      const fileSize = Number(assetInfo[0][0]); // Convert BigInt to Number
+      const maxSyncSize = 5 * 1024 * 1024; // 5MB limit for sync
+      
+      if (fileSize > maxSyncSize) {
+        // For large files, use chunked download
+        const filename = assetPath && assetPath.split ? assetPath.split('/').pop() : 'unknown';
+        alert(`File is too large (${(fileSize / 1024 / 1024).toFixed(2)} MB) to preview. Starting chunked download...`);
+        
+        // Get chunk count
+        const chunkCountResult = await backend.get_asset_chunk_count(assetPath);
+        if (!chunkCountResult.Ok) {
+          throw new Error('Failed to get chunk count');
+        }
+        
+        const chunkCount = Number(chunkCountResult.Ok);
+        const chunks = [];
+        
+        // Download all chunks
+        for (let i = 0; i < chunkCount; i++) {
+          const chunkResult = await backend.get_asset_chunk(assetPath, i);
+          if (!chunkResult.Ok) {
+            throw new Error(`Failed to download chunk ${i}`);
+          }
+          chunks.push(...chunkResult.Ok);
+        }
+        
+        // Combine chunks and download
+        const blob = new Blob([new Uint8Array(chunks)], { type: assetType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      } else {
+        // For small files, sync to frontend and open
+        const syncResult = await backend.sync_asset_to_frontend(assetPath);
+        if (!syncResult.Ok) {
+          throw new Error(syncResult.Err || 'Failed to sync asset');
+        }
+        
+        const base64Data = syncResult.Ok;
+        const binaryData = atob(base64Data);
+        const bytes = new Uint8Array(binaryData.length);
+        for (let i = 0; i < binaryData.length; i++) {
+          bytes[i] = binaryData.charCodeAt(i);
+        }
+        
+        const blob = new Blob([bytes], { type: assetType });
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        URL.revokeObjectURL(url);
+      }
+    } catch (e) {
+      alert('View failed: ' + e.message);
+    }
+  };
+
+  if (!isLoggedIn) {
+    return (
+      <div className="min-h-screen bg-neutral-950 text-white pt-20">
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="text-center">
+            <div className="w-24 h-24 bg-gradient-to-r from-orange-500 to-orange-800 rounded-full mx-auto mb-6 flex items-center justify-center">
+              <Shield className="w-12 h-12 text-white" />
+            </div>
+            <h1 className="text-4xl font-bold mb-4">Please Log In</h1>
+            <p className="text-lg text-neutral-400 mb-8">
+              You need to be logged in to access the Dashboard
+            </p>
+            <button 
+              onClick={() => window.location.href = '/'}
+              className="bg-gradient-to-r from-orange-500 to-orange-800 py-3 px-6 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105"
+            >
+              Go to Home
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-neutral-950 text-white">
-      {/* Header */}
-      <nav className="flex items-center justify-between px-8 py-4 border-b border-neutral-800">
-        <div className="flex items-center">
-          <img src={logo} alt="Logo" className="h-10 w-10 mr-3" />
-          <span className="text-2xl font-bold tracking-tight">dCDN Dashboard</span>
-        </div>
-        <div className="flex space-x-8">
-          <a href="#" className="hover:underline">Home</a>
-          <a href="#upload" className="hover:underline">Upload</a>
-          <a href="#assets" className="hover:underline">Assets</a>
-          <a href="#docs" className="hover:underline">Docs</a>
-        </div>
-        <div>
-          <button className="bg-gradient-to-r from-orange-500 to-orange-800 px-4 py-2 rounded-md">Sign In</button>
-        </div>
-      </nav>
-
-      {/* Welcome Section */}
-      <section className="py-10 px-8 text-center">
-        <h1 className="text-4xl font-bold mb-2">Welcome to Your Decentralized CDN!</h1>
-        <p className="text-lg text-neutral-400 mb-2">Upload, manage, and deliver your web assets globally, powered by the Internet Computer.</p>
-        <p className="text-sm text-neutral-500">(User info and principal will appear here after sign in.)</p>
-      </section>
-
-      {/* Upload Section */}
-      <section id="upload" className="max-w-2xl mx-auto bg-neutral-900 rounded-lg p-8 shadow mb-10">
-        <h2 className="text-2xl font-semibold mb-4">📤 Upload Your Assets</h2>
-        <div className="flex flex-col md:flex-row items-center gap-4">
-          <input type="file" onChange={handleFileChange} className="block w-full text-sm text-gray-400" />
-          <input type="text" value={path} onChange={e => setPath(e.target.value)} placeholder="/assets/yourfile.png" className="bg-neutral-800 px-3 py-2 rounded w-full md:w-1/2" />
-          <button onClick={handleUpload} disabled={uploading || !file} className="bg-orange-700 px-4 py-2 rounded disabled:opacity-50">Upload</button>
-        </div>
-        {uploadStatus && <div className="mt-2 text-green-400">{uploadStatus}</div>}
-      </section>
-
-      {/* Assets List / Explorer */}
-      <section id="assets" className="max-w-4xl mx-auto bg-neutral-900 rounded-lg p-8 shadow mb-10">
-        <h2 className="text-2xl font-semibold mb-4">📁 Your CDN Files</h2>
-        <table className="w-full text-left">
-          <thead>
-            <tr className="border-b border-neutral-700">
-              <th className="py-2">Path</th>
-              <th className="py-2">Size</th>
-              <th className="py-2">Type</th>
-              <th className="py-2">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {assets.map((asset, i) => {
-              const url = getAssetUrl(asset.path);
-              return (
-                <tr key={i} className="border-b border-neutral-800 hover:bg-neutral-800">
-                  <td className="py-2 font-mono">{asset.path}</td>
-                  <td className="py-2">{(Number(asset.size)/1024).toFixed(1)} KB</td>
-                  <td className="py-2">{asset.type}</td>
-                  <td className="py-2 flex gap-2 items-center">
-                    <a href={url} target="_blank" rel="noopener noreferrer" className="text-orange-400 hover:underline">View</a>
-                    <button
-                      className="text-xs text-neutral-400 border px-2 py-1 rounded hover:bg-neutral-800"
-                      onClick={() => handleCopyLink(url, i)}
-                      aria-label="Copy asset link"
-                    >
-                      {copiedIndex === i ? 'Copied!' : 'Copy Link'}
-                    </button>
-                    <button className="text-xs text-red-400 border border-red-400 px-2 py-1 rounded hover:bg-red-900 disabled:opacity-50" onClick={() => handleDelete(asset.path)} disabled={deleting === asset.path}>{deleting === asset.path ? 'Deleting...' : 'Delete'}</button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </section>
-
-      {/* Quick Start / Docs */}
-      <section id="docs" className="max-w-2xl mx-auto bg-neutral-900 rounded-lg p-8 shadow mb-10">
-        <h2 className="text-2xl font-semibold mb-4">🌐 CDN Quick Links</h2>
-        <ul className="list-disc pl-6 text-neutral-300">
-          <li>How to use: <a href="#" className="text-orange-400 hover:underline">See Docs</a></li>
-          <li>API Endpoint Example: <span className="font-mono">http://127.0.0.1:4943/?canisterId={canisterId}&asset=/assets/yourfile.png</span></li>
-          <li>Integration: <span className="font-mono">&lt;img src={`http://127.0.0.1:4943/?canisterId=${canisterId}&asset=/assets/logo.png`} /&gt;</span></li>
-        </ul>
-      </section>
-
-      {/* Stats Section (Optional) */}
-      <section className="max-w-2xl mx-auto bg-neutral-900 rounded-lg p-8 shadow mb-10">
-        <h2 className="text-2xl font-semibold mb-4">📊 Network Stats</h2>
-        <div className="flex flex-wrap gap-8">
-          <div className="flex-1">
-            <div className="text-3xl font-bold">{assets.length}</div>
-            <div className="text-neutral-400">Total Assets</div>
+    <div className="min-h-screen bg-neutral-950 text-white pt-20">
+      {/* Background Pattern */}
+      <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 via-transparent to-orange-800/5"></div>
+      
+      <div className="relative z-10 max-w-7xl mx-auto px-6">
+        {/* Welcome Section */}
+        <section className="py-10 text-center">
+          <div className="bg-gradient-to-r from-orange-500/10 to-orange-800/10 rounded-2xl p-8 border border-orange-500/20 mb-8">
+            <h1 className="text-4xl font-bold mb-2">Welcome to Your Decentralized CDN!</h1>
+            <p className="text-lg text-neutral-400 mb-2">Upload, manage, and deliver your web assets globally, powered by the Internet Computer.</p>
+            {principal && (
+              <p className="text-sm text-neutral-500 mt-2">
+                Logged in as: <span className="font-mono text-orange-400">{principal.toString()}</span>
+              </p>
+            )}
           </div>
-          <div className="flex-1">
-            <div className="text-3xl font-bold">{(assets.reduce((a, b) => Number(a) + Number(b.size), 0)/1024).toFixed(1)} KB</div>
-            <div className="text-neutral-400">Total Storage Used</div>
-          </div>
-          <div className="flex-1">
-            <div className="text-3xl font-bold">99.99%</div>
-            <div className="text-neutral-400">Uptime</div>
-          </div>
-        </div>
-      </section>
+        </section>
 
-      {/* Footer */}
-      <footer className="text-center py-6 text-neutral-500 border-t border-neutral-800">
-        Powered by ICP | <a href="#" className="text-orange-400 hover:underline">GitHub</a> | <a href="#" className="text-orange-400 hover:underline">Docs</a>
-      </footer>
+        {/* Upload Section */}
+        <section id="upload" className="bg-neutral-900/50 backdrop-blur-sm rounded-2xl p-8 border border-neutral-800 mb-10">
+          <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
+            <Upload className="w-6 h-6 text-orange-500" />
+            Upload Your Assets
+          </h2>
+          <div className="flex flex-col md:flex-row items-center gap-4">
+            <input type="file" onChange={handleFileChange} className="block w-full text-sm text-gray-400" />
+            <input type="text" value={path} onChange={e => setPath(e.target.value)} placeholder="/assets/yourfile.png" className="bg-neutral-800 px-3 py-2 rounded-lg w-full md:w-1/2" />
+            <div className="flex gap-2">
+              <button onClick={handleUpload} disabled={uploading || !file} className="bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800 px-4 py-2 rounded-lg disabled:opacity-50 transition-all duration-300 flex items-center gap-2">
+                <Upload className="w-4 h-4" />
+                {uploading ? 'Uploading...' : 'Upload'}
+              </button>
+              {uploading && (
+                <button onClick={handleCancelUpload} className="bg-red-700 hover:bg-red-800 px-4 py-2 rounded-lg transition-all duration-300">
+                  Cancel
+                </button>
+              )}
+            </div>
+          </div>
+          
+          {/* File Info */}
+          {file && (
+            <div className="mt-4 p-4 bg-neutral-800 rounded-lg border border-neutral-700">
+              <p className="text-sm text-neutral-300">
+                <strong>File:</strong> {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
+              </p>
+              <p className="text-sm text-neutral-400">
+                {file.size > CHUNK_SIZE ? 
+                  `Will use chunked upload (${Math.ceil(file.size / CHUNK_SIZE)} chunks of 500KB each)` : 
+                  'Will use single upload'
+                }
+              </p>
+              <p className="text-xs text-neutral-500 mt-1">
+                Supported formats: Images (PNG, JPG, GIF, SVG), Videos (MP4), Documents (PDF), Web (HTML, CSS, JS), Fonts (WOFF, TTF)
+              </p>
+            </div>
+          )}
+          
+          {/* Upload Progress */}
+          {uploading && (
+            <div className="mt-4">
+              <div className="flex justify-between text-sm text-neutral-400 mb-2">
+                <span>Progress</span>
+                <span>{uploadProgress}%</span>
+              </div>
+              <div className="w-full bg-neutral-800 rounded-full h-2">
+                <div 
+                  className="bg-gradient-to-r from-orange-500 to-orange-700 h-2 rounded-full transition-all duration-300" 
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
+              </div>
+              {uploading && (
+                <div className="flex justify-between text-xs text-neutral-500 mt-2">
+                  <span>Chunked Upload Active</span>
+                </div>
+              )}
+            </div>
+          )}
+          
+          {/* Upload Status */}
+          {uploadStatus && (
+            <div className={`mt-2 p-3 rounded-lg ${uploadStatus.includes('✅') ? 'text-green-400 bg-green-900/20 border border-green-500/20' : uploadStatus.includes('❌') ? 'text-red-400 bg-red-900/20 border border-red-500/20' : 'text-orange-400 bg-orange-900/20 border border-orange-500/20'}`}>
+              {uploadStatus}
+            </div>
+          )}
+        </section>
+
+        {/* Assets List / Explorer */}
+        <section id="assets" className="bg-neutral-900/50 backdrop-blur-sm rounded-2xl p-8 border border-neutral-800 mb-10">
+          <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
+            <FileText className="w-6 h-6 text-orange-500" />
+            Your CDN Files
+          </h2>
+          {assets.length === 0 ? (
+            <div className="text-center py-8 text-neutral-400">
+              <Cloud className="w-16 h-16 mx-auto mb-4 text-neutral-600" />
+              <p>No files uploaded yet. Upload your first file to get started!</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-neutral-700">
+                    <th className="py-3 px-4">Path</th>
+                    <th className="py-3 px-4">Size</th>
+                    <th className="py-3 px-4">Type</th>
+                    <th className="py-3 px-4">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {assets.map((asset, i) => {
+                    const url = getAssetUrl(asset.path);
+                    return (
+                      <tr key={i} className="border-b border-neutral-800 hover:bg-neutral-800/50 transition-colors duration-200">
+                        <td className="py-3 px-4 font-mono">{asset.path}</td>
+                        <td className="py-3 px-4">{(Number(asset.size)/1024).toFixed(1)} KB</td>
+                        <td className="py-3 px-4">{asset.type}</td>
+                        <td className="py-3 px-4 flex gap-2 items-center">
+                          <button 
+                            onClick={() => handleView(asset.path, asset.type)} 
+                            className="text-orange-400 hover:text-orange-300 bg-transparent border-none cursor-pointer p-2 hover:bg-orange-500/10 rounded-lg transition-all duration-200"
+                            title="View file"
+                          >
+                            <Eye className="w-4 h-4" />
+                          </button>
+                          <button
+                            className="text-neutral-400 hover:text-neutral-300 border px-2 py-1 rounded-lg hover:bg-neutral-800 transition-all duration-200 flex items-center gap-1"
+                            onClick={() => handleCopyLink(url, i)}
+                            aria-label="Copy asset link"
+                            title="Copy link"
+                          >
+                            <Copy className="w-3 h-3" />
+                            {copiedIndex === i ? 'Copied!' : 'Copy'}
+                          </button>
+                          <button 
+                            className="text-red-400 hover:text-red-300 border border-red-400 px-2 py-1 rounded-lg hover:bg-red-900/20 disabled:opacity-50 transition-all duration-200 flex items-center gap-1" 
+                            onClick={() => handleDelete(asset.path)} 
+                            disabled={deleting === asset.path}
+                            title="Delete file"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                            {deleting === asset.path ? 'Deleting...' : 'Delete'}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+
+        {/* Quick Start / Docs */}
+        <section id="docs" className="bg-neutral-900/50 backdrop-blur-sm rounded-2xl p-8 border border-neutral-800 mb-10">
+          <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
+            <Zap className="w-6 h-6 text-orange-500" />
+            CDN Quick Links
+          </h2>
+          <ul className="list-disc pl-6 text-neutral-300 space-y-2">
+            <li>How to use: <a href="#" className="text-orange-400 hover:underline">See Docs</a></li>
+            <li>API Endpoint Example: <span className="font-mono bg-neutral-800 px-2 py-1 rounded text-sm">http://127.0.0.1:4943/?canisterId={canisterId}&asset=/assets/yourfile.png</span></li>
+            <li>Integration: <span className="font-mono bg-neutral-800 px-2 py-1 rounded text-sm">&lt;img src={`http://127.0.0.1:4943/?canisterId=${canisterId}&asset=/assets/logo.png`} /&gt;</span></li>
+          </ul>
+        </section>
+
+        {/* Stats Section */}
+        <section className="bg-gradient-to-r from-orange-500/10 to-orange-800/10 rounded-2xl p-8 border border-orange-500/20 mb-10">
+          <h2 className="text-2xl font-semibold mb-6 text-center">Network Stats</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="text-center">
+              <div className="text-4xl font-bold text-orange-500">{assets.length}</div>
+              <div className="text-neutral-400">Total Assets</div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl font-bold text-orange-500">{(assets.reduce((a, b) => Number(a) + Number(b.size), 0)/1024).toFixed(1)} KB</div>
+              <div className="text-neutral-400">Total Storage Used</div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl font-bold text-orange-500">99.99%</div>
+              <div className="text-neutral-400">Uptime</div>
+            </div>
+          </div>
+        </section>
+
+        {/* Footer */}
+        <footer className="text-center py-6 text-neutral-500 border-t border-neutral-800">
+          <p>Powered by ICP | <a href="#" className="text-orange-400 hover:underline">GitHub</a> | <a href="#" className="text-orange-400 hover:underline">Docs</a></p>
+        </footer>
+      </div>
     </div>
   );
 } 
