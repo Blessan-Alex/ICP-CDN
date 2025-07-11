@@ -1,8 +1,7 @@
 import { AuthClient } from '@dfinity/auth-client';
 import { HttpAgent } from '@dfinity/agent';
 
-// Internet Identity canister ID (from dfx.json)
-const INTERNET_IDENTITY_CANISTER_ID = 'ufxgi-4p777-77774-qaadq-cai';
+let INTERNET_IDENTITY_CANISTER_ID = import.meta.env.VITE_CANISTER_ID_INTERNET_IDENTITY || "uzt4z-lp777-77774-qaabq-cai";
 
 let authClient = null;
 
@@ -23,7 +22,7 @@ export const login = async () => {
   
   return new Promise((resolve, reject) => {
     authClient.login({
-      identityProvider: process.env.DFX_NETWORK === 'ic' 
+      identityProvider: import.meta.env.VITE_DFX_NETWORK === 'ic' 
         ? 'https://identity.ic0.app' 
         : `http://${INTERNET_IDENTITY_CANISTER_ID}.localhost:4943`,
       onSuccess: () => {

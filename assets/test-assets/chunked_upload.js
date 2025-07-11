@@ -3,7 +3,15 @@ const { HttpAgent, Actor } = require('@dfinity/agent');
 const { IDL } = require('@dfinity/candid');
 
 // CONFIGURE THESE:
-const canisterId = 'ulvla-h7777-77774-qaacq-cai'; // your backend canister ID
+let canisterId = process.env.CANISTER_ID_BACKEND;
+try {
+  if (!canisterId) {
+    const ids = require('../../../.dfx/local/canister_ids.json');
+    canisterId = ids.icp_cdn_backend?.local || ids.icp_cdn_backend;
+  }
+} catch (e) {
+  canisterId = canisterId || 'u6s2n-gx777-77774-qaaba-cai';
+}
 const filePath = './asset.png'; // path to your file
 const assetPath = '/assets/asset.png'; // path in canister
 

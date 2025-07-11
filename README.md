@@ -140,10 +140,10 @@ Use your uploaded assets in web applications:
 
 ```html
 <!-- Image example -->
-<img src="http://127.0.0.1:4943/?canisterId=YOUR_CANISTER_ID&asset=/assets/logo.png" />
+<img src="http://127.0.0.1:4943/?canisterId=u6s2n-gx777-77774-qaaba-cai&asset=/assets/logo.png" />
 
 <!-- Video example -->
-<video src="http://127.0.0.1:4943/?canisterId=YOUR_CANISTER_ID&asset=/assets/video.mp4" />
+<video src="http://127.0.0.1:4943/?canisterId=u6s2n-gx777-77774-qaaba-cai&asset=/assets/video.mp4" />
 ```
 
 ## 🔧 Development
@@ -177,7 +177,7 @@ dfx canister call    # Call canister methods
 
 Create a `.env` file in the project root:
 ```env
-CANISTER_ID_BACKEND=your_backend_canister_id
+CANISTER_ID_BACKEND=u6s2n-gx777-77774-qaaba-cai
 CANISTER_ID_FRONTEND=your_frontend_canister_id
 ```
 

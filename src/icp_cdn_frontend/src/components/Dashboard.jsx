@@ -5,7 +5,7 @@ import { HttpAgent } from '@dfinity/agent';
 import { initAuth, getIdentity } from '../auth';
 import { Upload, FileText, Trash2, Copy, Eye, Download, Cloud, Zap, Shield } from 'lucide-react';
 
-const assetCanisterId = "ucwa4-rx777-77774-qaada-cai"; // asset canister
+let assetCanisterId = import.meta.env.VITE_CANISTER_ID_FRONTEND || "u6s2n-gx777-77774-qaaba-cai";
 const getAssetUrl = (path) => {
   const filename = path && path.split ? path.split('/').pop() : 'unknown';
   return `http://${assetCanisterId}.localhost:4943/assets/${filename}`;
@@ -34,7 +34,10 @@ export default function Dashboard() {
         try {
           await initAuth();
           const identity = getIdentity();
-          const agent = new HttpAgent({ identity });
+          const agent = new HttpAgent({
+            host: import.meta.env.VITE_DFX_REPLICA_HOST || "http://127.0.0.1:4943",
+            identity
+          });
           const backend = createActor(canisterId, { agent });
           backendRef.current = backend;
           
@@ -116,6 +119,9 @@ export default function Dashboard() {
         // Small file - single upload
         setUploadStatus('Uploading file...');
         const fileBuffer = await file.arrayBuffer();
+        if (typeof backend.upload_asset !== 'function') {
+          throw new Error('Backend does not support upload_asset. Please use chunked upload for large files.');
+        }
         const result = await backend.upload_asset(path, Array.from(new Uint8Array(fileBuffer)));
         if (!result.Ok) {
           throw new Error(result.Err || 'Upload failed');
@@ -124,6 +130,9 @@ export default function Dashboard() {
         setUploadStatus('✅ Upload successful!');
       } else {
         // Large file - chunked upload
+        if (typeof backend.start_upload !== 'function' || typeof backend.upload_chunk !== 'function' || typeof backend.commit_upload !== 'function') {
+          throw new Error('Backend does not support chunked upload methods.');
+        }
         setUploadStatus('Starting chunked upload...');
         
         // Step 1: Initiate upload

@@ -1,0 +1,3 @@
+  VITE_CANISTER_ID_BACKEND=xxxxx-xxxxx-xxxxx-xxxxx-xxxxx
+  VITE_CANISTER_ID_FRONTEND=xxxxx-xxxxx-xxxxx-xxxxx-xxxxx
+  VITE_CANISTER_ID_INTERNET_IDENTITY=xxxxx-xxxxx-xxxxx-xxxxx-xxxxx

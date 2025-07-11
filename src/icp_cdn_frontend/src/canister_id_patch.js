@@ -1,7 +1,6 @@
 import { createActor as backendCreateActor } from '../../declarations/icp_cdn_backend';
 
-// Hardcode your backend canister ID here:
-export const canisterId = "ulvla-h7777-77774-qaacq-cai"; // <-- update as needed
+export const canisterId = import.meta.env.VITE_CANISTER_ID_BACKEND || "uxrrr-q7777-77774-qaaaq-cai";
 
 export function createActor(canisterId, options) {
   return backendCreateActor(canisterId, options);
