@@ -1,26 +1,14 @@
+type IpfsFile = record {
+    name: text;
+    cid: text;
+    size: nat64;
+    content_type: text;
+    uploaded_at: nat64;
+};
+
 service : {
+    "add_ipfs_file": (text, text, nat64, text) -> (variant { Ok : text; Err : text });
+    "list_ipfs_files": () -> (vec IpfsFile) query;
+    "delete_ipfs_file": (text) -> (variant { Ok : text; Err : text });
     "greet": (text) -> (text) query;
-    "upload_asset": (text, blob) -> (variant { Ok : text; Err : text });
-    "delete_asset": (text) -> (variant { Ok : text; Err : text });
-    "get_asset_info": (text) -> (opt record { 0 : nat64; 1 : text }) query;
-    "list_assets": () -> (vec text) query;
-    "http_request": (record {
-        method: text;
-        url: text;
-        headers: vec record { text; text };
-        body: blob;
-        certificate_version: opt nat16;
-    }) -> (record {
-        status_code: nat16;
-        headers: vec record { text; text };
-        body: blob;
-        streaming_strategy: opt variant { };
-    }) query;
-    "sync_asset_to_frontend": (text) -> (variant { Ok : text; Err : text });
-    "get_asset_chunk": (text, nat32) -> (variant { Ok : blob; Err : text }) query;
-    "get_asset_chunk_count": (text) -> (variant { Ok : nat32; Err : text }) query;
-    "start_upload": (text) -> (variant { Ok : text; Err : text });
-    "upload_chunk": (text, blob) -> (variant { Ok : text; Err : text });
-    "commit_upload": (text) -> (variant { Ok : text; Err : text });
-    "abort_upload": (text) -> (variant { Ok : text; Err : text });
 }

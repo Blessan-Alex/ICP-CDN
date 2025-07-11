@@ -17,6 +17,8 @@
   ],
   "dependencies": {
     "@dfinity/agent": "^2.4.1",
-    "@dfinity/candid": "^2.4.1"
+    "@dfinity/candid": "^2.4.1",
+    "node-fetch": "^3.3.2",
+    "pinata": "^2.4.9"
   }
 }

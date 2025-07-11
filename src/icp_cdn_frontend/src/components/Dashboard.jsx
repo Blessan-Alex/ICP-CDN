@@ -16,7 +16,8 @@ export default function Dashboard() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState('');
-  const [assets, setAssets] = useState([]);
+  // Replace assets state with files state
+  const [files, setFiles] = useState([]);
   const [file, setFile] = useState(null);
   const [path, setPath] = useState('');
   const [deleting, setDeleting] = useState('');
@@ -27,7 +28,7 @@ export default function Dashboard() {
   // Chunk size for uploads (500KB chunks to avoid payload limits)
   const CHUNK_SIZE = 512 * 1024;
 
-  // Re-create backend actor with authenticated identity when principal changes
+  // On mount, use loadIpfsFiles instead of loadAssetsWithInfo
   useEffect(() => {
     const initBackend = async () => {
       if (isLoggedIn && principal) {
@@ -40,44 +41,23 @@ export default function Dashboard() {
           });
           const backend = createActor(canisterId, { agent });
           backendRef.current = backend;
-          
-          // Load assets with full info
-          await loadAssetsWithInfo(backend);
+          await loadIpfsFiles(backend);
         } catch (error) {
           console.error('Failed to initialize backend:', error);
         }
       }
     };
-    
     initBackend();
   }, [isLoggedIn, principal]);
 
-  // Function to load assets with full information
-  const loadAssetsWithInfo = async (backend) => {
+  // Replace loadAssetsWithInfo with loadIpfsFiles
+  const loadIpfsFiles = async (backend) => {
     try {
-      const assetPaths = await backend.list_assets();
-      const assetsWithInfo = await Promise.all(
-        assetPaths.map(async (path) => {
-          const assetInfo = await backend.get_asset_info(path);
-          if (assetInfo && assetInfo.length > 0) {
-            return {
-              path: path,
-              size: assetInfo[0][0], // BigInt size
-              type: assetInfo[0][1]  // String type
-            };
-          } else {
-            return {
-              path: path,
-              size: BigInt(0),
-              type: 'unknown'
-            };
-          }
-        })
-      );
-      setAssets(assetsWithInfo);
+      const ipfsFiles = await backend.list_ipfs_files();
+      setFiles(ipfsFiles);
     } catch (error) {
-      console.error('Failed to load assets with info:', error);
-      setAssets([]);
+      console.error('Failed to load IPFS files:', error);
+      setFiles([]);
     }
   };
 
@@ -93,105 +73,45 @@ export default function Dashboard() {
     }
   };
 
+  // Replace handleUpload with Pinata upload + add_ipfs_file
   const handleUpload = async () => {
     if (!isLoggedIn) {
       alert('Please log in to upload files');
       return;
     }
-    
-    if (!file || !path) {
-      alert('Please select a file and specify a path');
+    if (!file) {
+      alert('Please select a file');
       return;
     }
-    
     setUploading(true);
     setUploadProgress(0);
-    setUploadStatus('Starting upload...');
+    setUploadStatus('Uploading to Pinata...');
     abortControllerRef.current = new AbortController();
-    
     try {
+      // 1. Upload to Pinata (assume PinataSDK is available in the frontend)
+      const pinata = window.pinata; // You must initialize PinataSDK in the frontend and attach to window
+      if (!pinata) throw new Error('Pinata SDK not initialized');
+      const pinataFile = new File([file], file.name, { type: file.type });
+      const upload = await pinata.upload.public.file(pinataFile);
+      setUploadProgress(100);
+      setUploadStatus('Pinata upload successful! Storing metadata...');
+      // 2. Store metadata in backend
       const backend = backendRef.current;
-      if (!backend) {
-        throw new Error('No authenticated backend available');
-      }
-      
-      if (file.size <= CHUNK_SIZE) {
-        // Small file - single upload
-        setUploadStatus('Uploading file...');
-        const fileBuffer = await file.arrayBuffer();
-        if (typeof backend.upload_asset !== 'function') {
-          throw new Error('Backend does not support upload_asset. Please use chunked upload for large files.');
-        }
-        const result = await backend.upload_asset(path, Array.from(new Uint8Array(fileBuffer)));
-        if (!result.Ok) {
-          throw new Error(result.Err || 'Upload failed');
-        }
-        setUploadProgress(100);
-        setUploadStatus('✅ Upload successful!');
-      } else {
-        // Large file - chunked upload
-        if (typeof backend.start_upload !== 'function' || typeof backend.upload_chunk !== 'function' || typeof backend.commit_upload !== 'function') {
-          throw new Error('Backend does not support chunked upload methods.');
-        }
-        setUploadStatus('Starting chunked upload...');
-        
-        // Step 1: Initiate upload
-        const initResult = await backend.start_upload(path);
-        if (!initResult.Ok) {
-          throw new Error(initResult.Err || 'Failed to initiate upload');
-        }
-        
-        // Step 2: Upload chunks
-        const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
-        for (let i = 0; i < totalChunks; i++) {
-          if (abortControllerRef.current?.signal.aborted) {
-            throw new Error('Upload cancelled');
-          }
-          
-          const start = i * CHUNK_SIZE;
-          const end = Math.min(start + CHUNK_SIZE, file.size);
-          const chunk = file.slice(start, end);
-          const chunkBuffer = await chunk.arrayBuffer();
-          
-          setUploadStatus(`Uploading chunk ${i + 1}/${totalChunks}...`);
-          const uploadResult = await backend.upload_chunk(path, Array.from(new Uint8Array(chunkBuffer)));
-          if (!uploadResult.Ok) {
-            throw new Error(uploadResult.Err || `Failed to upload chunk ${i + 1}`);
-          }
-          
-          const progress = ((i + 1) / totalChunks) * 100;
-          setUploadProgress(progress);
-        }
-        
-        if (abortControllerRef.current?.signal.aborted) {
-          throw new Error('Upload cancelled');
-        }
-        
-        // Step 3: Commit upload
-        setUploadStatus('Finalizing upload...');
-        const commitResult = await backend.commit_upload(path);
-        if (!commitResult.Ok) {
-          throw new Error(commitResult.Err || 'Failed to commit upload');
-        }
-        
-        setUploadProgress(100);
-        setUploadStatus('✅ Upload committed successfully!');
-      }
-      
-      // Refresh assets list
-      await loadAssetsWithInfo(backend);
-      
-      // Reset form
+      if (!backend) throw new Error('No authenticated backend available');
+      const result = await backend.add_ipfs_file(
+        upload.name,
+        upload.cid,
+        BigInt(upload.size),
+        upload.mime_type
+      );
+      if (!result.Ok) throw new Error(result.Err || 'Backend metadata store failed');
+      setUploadStatus('✅ File uploaded and metadata stored!');
+      await loadIpfsFiles(backend);
       setFile(null);
-      setPath('');
-      
     } catch (e) {
-      if (e.message !== 'Upload cancelled') {
-        setUploadStatus('❌ Upload failed: ' + e.message);
-        alert('Upload failed: ' + e.message);
-      }
+      setUploadStatus('❌ Upload failed: ' + e.message);
+      alert('Upload failed: ' + e.message);
     }
-    
     setUploading(false);
     abortControllerRef.current = null;
   };
@@ -204,25 +124,19 @@ export default function Dashboard() {
     }
   };
 
-  const handleDelete = async (assetPath) => {
+  // Replace handleDelete to use delete_ipfs_file
+  const handleDelete = async (cid) => {
     if (!isLoggedIn) {
       alert('Please log in to delete files');
       return;
     }
-    
-    setDeleting(assetPath);
+    setDeleting(cid);
     try {
       const backend = backendRef.current;
-      if (!backend) {
-        throw new Error('No authenticated backend available');
-      }
-      
-      const result = await backend.delete_asset(assetPath);
-      if (result.Ok) {
-        setAssets(assets.filter(a => a.path !== assetPath));
-      } else {
-        alert('Delete failed: ' + (result.Err || 'Unknown error'));
-      }
+      if (!backend) throw new Error('No authenticated backend available');
+      const result = await backend.delete_ipfs_file(cid);
+      if (!result.Ok) throw new Error(result.Err || 'Delete failed');
+      await loadIpfsFiles(backend);
     } catch (e) {
       alert('Delete failed: ' + e.message);
     }
@@ -442,7 +356,7 @@ export default function Dashboard() {
             <FileText className="w-6 h-6 text-orange-500" />
             Your CDN Files
           </h2>
-          {assets.length === 0 ? (
+          {files.length === 0 ? (
             <div className="text-center py-8 text-neutral-400">
               <Cloud className="w-16 h-16 mx-auto mb-4 text-neutral-600" />
               <p>No files uploaded yet. Upload your first file to get started!</p>
@@ -459,16 +373,16 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {assets.map((asset, i) => {
-                    const url = getAssetUrl(asset.path);
+                  {files.map((file, i) => {
+                    const url = getAssetUrl(file.path);
                     return (
                       <tr key={i} className="border-b border-neutral-800 hover:bg-neutral-800/50 transition-colors duration-200">
-                        <td className="py-3 px-4 font-mono">{asset.path}</td>
-                        <td className="py-3 px-4">{(Number(asset.size)/1024).toFixed(1)} KB</td>
-                        <td className="py-3 px-4">{asset.type}</td>
+                        <td className="py-3 px-4 font-mono">{file.path}</td>
+                        <td className="py-3 px-4">{(Number(file.size)/1024).toFixed(1)} KB</td>
+                        <td className="py-3 px-4">{file.type}</td>
                         <td className="py-3 px-4 flex gap-2 items-center">
                           <button 
-                            onClick={() => handleView(asset.path, asset.type)} 
+                            onClick={() => handleView(file.path, file.type)} 
                             className="text-orange-400 hover:text-orange-300 bg-transparent border-none cursor-pointer p-2 hover:bg-orange-500/10 rounded-lg transition-all duration-200"
                             title="View file"
                           >
@@ -485,12 +399,12 @@ export default function Dashboard() {
                           </button>
                           <button 
                             className="text-red-400 hover:text-red-300 border border-red-400 px-2 py-1 rounded-lg hover:bg-red-900/20 disabled:opacity-50 transition-all duration-200 flex items-center gap-1" 
-                            onClick={() => handleDelete(asset.path)} 
-                            disabled={deleting === asset.path}
+                            onClick={() => handleDelete(file.cid)} 
+                            disabled={deleting === file.cid}
                             title="Delete file"
                           >
                             <Trash2 className="w-3 h-3" />
-                            {deleting === asset.path ? 'Deleting...' : 'Delete'}
+                            {deleting === file.cid ? 'Deleting...' : 'Delete'}
                           </button>
                         </td>
                       </tr>
@@ -520,11 +434,11 @@ export default function Dashboard() {
           <h2 className="text-2xl font-semibold mb-6 text-center">Network Stats</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="text-center">
-              <div className="text-4xl font-bold text-orange-500">{assets.length}</div>
+              <div className="text-4xl font-bold text-orange-500">{files.length}</div>
               <div className="text-neutral-400">Total Assets</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-orange-500">{(assets.reduce((a, b) => Number(a) + Number(b.size), 0)/1024).toFixed(1)} KB</div>
+              <div className="text-4xl font-bold text-orange-500">{(files.reduce((a, b) => Number(a) + Number(b.size), 0)/1024).toFixed(1)} KB</div>
               <div className="text-neutral-400">Total Storage Used</div>
             </div>
             <div className="text-center">
