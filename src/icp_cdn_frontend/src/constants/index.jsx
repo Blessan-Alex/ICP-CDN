@@ -39,9 +39,9 @@ export const features = [
   },
   {
     icon: <Shield />,
-    text: "Global Asset Distribution",
+    text: "Global IPFS Distribution",
     description:
-      "Files are served through dedicated asset canisters with HTTP certification, ensuring fast global access. Your content is available worldwide with minimal latency and maximum reliability.",
+      "Files are served through IPFS with Pinata gateway, ensuring fast global access. Your content is available worldwide with minimal latency and maximum reliability.",
   },
   {
     icon: <Folder />,

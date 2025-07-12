@@ -1,0 +1,21 @@
+{
+  "name": "pinata_backend",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.0",
+    "express": "^5.1.0",
+    "form-data": "^4.0.3",
+    "multer": "^2.0.1",
+    "pinata": "^2.4.9"
+  }
+}

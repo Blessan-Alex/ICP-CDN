@@ -1,13 +1,13 @@
 # 🌐 CanisterDrop - Decentralized CDN on Internet Computer
 
-**CanisterDrop** is a revolutionary decentralized Content Delivery Network (CDN) built on the Internet Computer Protocol (ICP). It provides lightning-fast, secure, and globally distributed content delivery without the traditional bottlenecks of centralized infrastructure.
+**CanisterDrop** is a revolutionary decentralized Content Delivery Network (CDN) built on the Internet Computer Protocol (ICP) with IPFS storage via Pinata. It provides lightning-fast, secure, and globally distributed content delivery without the traditional bottlenecks of centralized infrastructure.
 
 ## 🚀 Features
 
 ### 🔐 **Decentralized File Storage**
-- Store files securely on the Internet Computer blockchain
+- Store files securely on IPFS via Pinata
 - Cryptographic verification ensures tamper-proof content
-- Distributed across multiple nodes for maximum reliability
+- Distributed across multiple IPFS nodes for maximum reliability
 - Global accessibility with no single point of failure
 
 ### 🛡️ **User Authentication & Isolation**
@@ -16,20 +16,20 @@
 - Cryptographically separated user data
 - Prevents unauthorized access and maintains privacy
 
-### ⚡ **Chunked Upload & Download**
-- Handle large files efficiently with automatic chunking
-- Files over 500KB automatically split into manageable chunks
-- Reliable transfer with optimal performance
+### ⚡ **Secure File Upload**
+- Files uploaded through secure backend proxy
+- No direct frontend-to-Pinata communication (JWT protection)
 - Progress tracking and cancellation support
+- Automatic content type detection
 
-### 🌍 **Global Asset Distribution**
-- HTTP-certified asset canisters for fast global access
+### 🌍 **Global IPFS Distribution**
+- IPFS gateway distribution for fast global access
 - Worldwide content availability with minimal latency
-- Maximum reliability through distributed architecture
+- Maximum reliability through distributed IPFS network
 - No geographical restrictions or bottlenecks
 
 ### 📁 **Comprehensive File Management**
-- Upload, view, delete, and share files with unique asset links
+- Upload, view, delete, and share files with unique IPFS links
 - Support for images, videos, documents, web assets, and fonts
 - Automatic content type detection and management
 - Intuitive file organization and sharing
@@ -42,21 +42,32 @@
 
 ## 🏗️ Architecture
 
-CanisterDrop is built with a modern, decentralized architecture:
+CanisterDrop is built with a modern, secure architecture:
 
-- **Backend Canister**: Rust-based smart contract handling user data, authentication, and file management
-- **Asset Canister**: Dedicated canister for serving static files with HTTP certification
-- **Frontend**: React application with Internet Identity authentication
+- **Frontend Canister**: React application with Internet Identity authentication
+- **Backend Canister**: Rust-based smart contract handling user data and file metadata
+- **Express Backend Server**: Secure proxy for Pinata uploads (protects JWT)
+- **Pinata**: IPFS pinning service for decentralized file storage
 - **Internet Identity**: Secure authentication system for user management
+
+### Data Flow
+1. **User** uploads file through React frontend
+2. **Frontend** sends file to Express backend server
+3. **Backend Server** uploads to Pinata (IPFS) using secure JWT
+4. **Pinata** returns IPFS hash and gateway URL
+5. **Backend Server** returns metadata to frontend
+6. **Frontend** stores metadata in ICP backend canister
+7. **Files** are served via IPFS gateway URLs
 
 ## 🛠️ Technology Stack
 
 - **Blockchain**: Internet Computer Protocol (ICP)
-- **Backend**: Rust with Candid interface
+- **Backend Canister**: Rust with Candid interface
 - **Frontend**: React + Vite + Tailwind CSS
+- **Backend Server**: Node.js + Express
+- **File Storage**: IPFS via Pinata
 - **Authentication**: Internet Identity
-- **File Storage**: ICP Stable Memory
-- **HTTP Certification**: IC Certified Assets
+- **HTTP Gateway**: Pinata Gateway
 
 ## 📋 Prerequisites
 
@@ -67,6 +78,7 @@ Before you begin, ensure you have the following installed:
 - **DFX** (Internet Computer SDK)
 - **Rust** and **Cargo**
 - **Git**
+- **Pinata Account** (for IPFS storage)
 
 ## 🚀 Installation
 
@@ -82,24 +94,46 @@ cd icp_cdn
 cd src/icp_cdn_frontend
 npm install
 
-# Install backend dependencies (from project root)
-cd ../..
+# Install backend server dependencies
+cd ../../pinata_backend
+npm install
+
+# Install backend canister dependencies (from project root)
+cd ..
 cargo build
 ```
 
-### 3. Start Local Internet Computer
+### 3. Set Up Environment Variables
+```bash
+# Run the setup script
+./scripts/deployment/setup_env.sh
+```
+
+This will prompt you for:
+- **Pinata JWT**: Your Pinata API JWT token
+- **Pinata Gateway**: Your Pinata gateway domain
+
+### 4. Start Local Internet Computer
 ```bash
 dfx start --background
 ```
 
-### 4. Deploy Canisters
+### 5. Deploy Canisters
 ```bash
-dfx deploy
+# Deploy with environment setup
+./scripts/deployment/deploy_with_env.sh
 ```
 
-### 5. Start Development Server
+### 6. Start Backend Server
 ```bash
 # In a new terminal
+cd pinata_backend
+node server.js
+```
+
+### 7. Start Development Server
+```bash
+# In another terminal
 cd src/icp_cdn_frontend
 npm run dev
 ```
@@ -118,21 +152,22 @@ npm run dev
 
 3. **Upload Files**
    - Navigate to the Dashboard
-   - Select a file and specify a path (e.g., `/assets/myfile.png`)
-   - Click "Upload" to store your file on the decentralized network
+   - Select a file to upload
+   - Click "Upload" to store your file on IPFS via Pinata
 
 4. **Manage Content**
    - View all uploaded files in the dashboard
-   - Copy shareable links for your assets
-   - Delete files when no longer needed
+   - Copy shareable IPFS gateway links for your assets
+   - Delete files when no longer needed (removes from metadata, unpins from IPFS)
 
 ### File Types Supported
 
-- **Images**: PNG, JPG, GIF, SVG
-- **Videos**: MP4
-- **Documents**: PDF
-- **Web Assets**: HTML, CSS, JavaScript
-- **Fonts**: WOFF, TTF
+- **Images**: PNG, JPG, GIF, SVG, WebP
+- **Videos**: MP4, WebM, MOV
+- **Documents**: PDF, DOC, DOCX, TXT
+- **Web Assets**: HTML, CSS, JavaScript, JSON
+- **Fonts**: WOFF, TTF, OTF
+- **Archives**: ZIP, RAR, 7Z
 
 ### API Integration
 
@@ -140,10 +175,10 @@ Use your uploaded assets in web applications:
 
 ```html
 <!-- Image example -->
-<img src="http://127.0.0.1:4943/?canisterId=u6s2n-gx777-77774-qaaba-cai&asset=/assets/logo.png" />
+<img src="https://your-gateway.mypinata.cloud/ipfs/QmYourIPFSHash" />
 
 <!-- Video example -->
-<video src="http://127.0.0.1:4943/?canisterId=u6s2n-gx777-77774-qaaba-cai&asset=/assets/video.mp4" />
+<video src="https://your-gateway.mypinata.cloud/ipfs/QmYourIPFSHash" />
 ```
 
 ## 🔧 Development
@@ -154,6 +189,11 @@ icp_cdn/
 ├── src/
 │   ├── icp_cdn_backend/     # Rust backend canister
 │   └── icp_cdn_frontend/    # React frontend
+├── pinata_backend/          # Express backend server
+├── scripts/
+│   ├── deployment/          # Deployment scripts
+│   ├── pinataguide.txt      # Pinata best practices
+│   └── update_frontend_env.cjs
 ├── dfx.json                 # DFX configuration
 ├── Cargo.toml              # Rust dependencies
 └── package.json            # Node.js dependencies
@@ -162,7 +202,13 @@ icp_cdn/
 ### Available Scripts
 
 ```bash
+# Deployment
+./scripts/deployment/setup_env.sh      # Set up environment variables
+./scripts/deployment/deploy.sh         # Deploy canisters
+./scripts/deployment/deploy_with_env.sh # Deploy with environment setup
+
 # Frontend development
+cd src/icp_cdn_frontend
 npm run dev          # Start development server
 npm run build        # Build for production
 npm run preview      # Preview production build
@@ -171,14 +217,28 @@ npm run preview      # Preview production build
 dfx build            # Build canisters
 dfx deploy           # Deploy to local network
 dfx canister call    # Call canister methods
+
+# Backend server
+cd pinata_backend
+node server.js       # Start Express backend server
 ```
 
 ### Environment Variables
 
-Create a `.env` file in the project root:
+#### Frontend (.env in src/icp_cdn_frontend/)
 ```env
-CANISTER_ID_BACKEND=u6s2n-gx777-77774-qaaba-cai
-CANISTER_ID_FRONTEND=your_frontend_canister_id
+VITE_DFX_REPLICA_HOST=http://127.0.0.1:4943
+VITE_CANISTER_ID_BACKEND=<backend_canister_id>
+VITE_CANISTER_ID_FRONTEND=<frontend_canister_id>
+VITE_CANISTER_ID_INTERNET_IDENTITY=be2us-64aaa-aaaaa-qaabq-cai
+VITE_PINATA_JWT=<your_pinata_jwt>
+VITE_PINATA_GATEWAY=<your_gateway_domain.mypinata.cloud>
+```
+
+#### Backend Server (.env in root)
+```env
+VITE_PINATA_JWT=<your_pinata_jwt>
+VITE_PINATA_GATEWAY=<your_gateway_domain.mypinata.cloud>
 ```
 
 ## 🌟 Key Benefits
@@ -187,21 +247,25 @@ CANISTER_ID_FRONTEND=your_frontend_canister_id
 - No single point of failure
 - Censorship-resistant content delivery
 - Community-owned infrastructure
+- IPFS-based distributed storage
 
 ### **Security**
-- Cryptographic verification of all content
+- JWT tokens never exposed to frontend
+- Secure backend proxy for all Pinata operations
 - User data isolation and privacy
-- Tamper-proof file storage
+- Tamper-proof file storage on IPFS
 
 ### **Performance**
-- Global distribution with minimal latency
-- Automatic load balancing
-- Optimized content delivery
+- Global IPFS distribution with minimal latency
+- Automatic load balancing through IPFS
+- Optimized content delivery via Pinata gateway
+- No traditional CDN costs
 
 ### **Cost-Effective**
 - No traditional CDN costs
-- Pay-per-use model
+- Pay-per-use model with Pinata
 - Reduced infrastructure overhead
+- Shared IPFS network benefits
 
 ## 🤝 Contributing
 
@@ -226,11 +290,11 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🔮 Future Works & Advanced Features
 
-### 🚀 **Multi-Canister Replication & Load Balancing**
-- **Distributed Storage**: Implement cross-canister file replication for enhanced reliability
-- **Load Balancing**: Intelligent traffic distribution across multiple asset canisters
-- **Geographic Distribution**: Region-specific canister deployment for optimal performance
-- **Auto-scaling**: Dynamic canister creation based on traffic demands
+### 🚀 **Enhanced IPFS Integration**
+- **IPFS Cluster**: Multi-node IPFS cluster for enhanced reliability
+- **Content Addressing**: Advanced content-addressed storage strategies
+- **IPFS Pinning**: Intelligent pinning strategies for popular content
+- **Cross-Gateway Support**: Multiple IPFS gateway support
 
 ### 🔐 **Advanced Security & Privacy**
 - **End-to-End Encryption**: Client-side encryption before upload
@@ -308,9 +372,10 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - **Documentation**: [Project Wiki](comingsoon)
 - **Internet Computer**: [ICP Documentation](https://internetcomputer.org/docs)
 - **DFX**: [DFX Documentation](https://internetcomputer.org/docs/current/developer-docs/setup/install/)
+- **Pinata**: [Pinata Documentation](https://docs.pinata.cloud/)
 
 ---
 
-**Built with ❤️ on the Internet Computer Protocol**
+**Built with ❤️ on the Internet Computer Protocol + IPFS**
 
 *Empowering the future of decentralized content delivery*

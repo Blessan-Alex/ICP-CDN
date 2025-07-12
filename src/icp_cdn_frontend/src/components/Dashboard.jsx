@@ -5,10 +5,9 @@ import { HttpAgent } from '@dfinity/agent';
 import { initAuth, getIdentity } from '../auth';
 import { Upload, FileText, Trash2, Copy, Eye, Download, Cloud, Zap, Shield } from 'lucide-react';
 
-let assetCanisterId = import.meta.env.VITE_CANISTER_ID_FRONTEND || "u6s2n-gx777-77774-qaaba-cai";
-const getAssetUrl = (path) => {
-  const filename = path && path.split ? path.split('/').pop() : 'unknown';
-  return `http://${assetCanisterId}.localhost:4943/assets/${filename}`;
+const PINATA_GATEWAY = "black-defensive-zebra-94.mypinata.cloud";
+const getAssetUrl = (cid) => {
+  return `https://${PINATA_GATEWAY}/ipfs/${cid}`;
 };
 
 export default function Dashboard() {
@@ -27,6 +26,9 @@ export default function Dashboard() {
   
   // Chunk size for uploads (500KB chunks to avoid payload limits)
   const CHUNK_SIZE = 512 * 1024;
+
+  // Pinata storage limit in bytes
+  const PINATA_STORAGE_LIMIT = 1073741824; // 1 GB
 
   // On mount, use loadIpfsFiles instead of loadAssetsWithInfo
   useEffect(() => {
@@ -85,24 +87,28 @@ export default function Dashboard() {
     }
     setUploading(true);
     setUploadProgress(0);
-    setUploadStatus('Uploading to Pinata...');
+    setUploadStatus('Uploading to backend...');
     abortControllerRef.current = new AbortController();
     try {
-      // 1. Upload to Pinata (assume PinataSDK is available in the frontend)
-      const pinata = window.pinata; // You must initialize PinataSDK in the frontend and attach to window
-      if (!pinata) throw new Error('Pinata SDK not initialized');
-      const pinataFile = new File([file], file.name, { type: file.type });
-      const upload = await pinata.upload.public.file(pinataFile);
+      // 1. Upload to backend /upload endpoint
+      const formData = new FormData();
+      formData.append('file', file);
+      const response = await fetch('http://localhost:8787/upload', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await response.json();
+      if (!data.success) throw new Error(data.error || 'Backend upload failed');
       setUploadProgress(100);
       setUploadStatus('Pinata upload successful! Storing metadata...');
-      // 2. Store metadata in backend
+      // 2. Store metadata in backend canister
       const backend = backendRef.current;
       if (!backend) throw new Error('No authenticated backend available');
       const result = await backend.add_ipfs_file(
-        upload.name,
-        upload.cid,
-        BigInt(upload.size),
-        upload.mime_type
+        data.fileName,
+        data.ipfsHash,
+        BigInt(data.size),
+        data.contentType
       );
       if (!result.Ok) throw new Error(result.Err || 'Backend metadata store failed');
       setUploadStatus('✅ File uploaded and metadata stored!');
@@ -153,86 +159,16 @@ export default function Dashboard() {
     }
   };
 
-  const handleView = async (assetPath, assetType) => {
+  const handleView = async (cid, contentType) => {
     if (!isLoggedIn) {
       alert('Please log in to view files');
       return;
     }
     
     try {
-      const backend = backendRef.current;
-      if (!backend) {
-        throw new Error('No authenticated backend available');
-      }
-      
-      // Get asset info first to check size
-      const assetInfo = await backend.get_asset_info(assetPath);
-      if (!assetInfo || assetInfo.length === 0) {
-        alert('Asset not found');
-        return;
-      }
-      
-      const fileSize = Number(assetInfo[0][0]); // Convert BigInt to Number
-      const maxSyncSize = 5 * 1024 * 1024; // 5MB limit for sync
-      
-      if (fileSize > maxSyncSize) {
-        // For large files, use chunked download
-        const filename = assetPath && assetPath.split ? assetPath.split('/').pop() : 'unknown';
-        alert(`File is too large (${(fileSize / 1024 / 1024).toFixed(2)} MB) to preview. Starting chunked download...`);
-        
-        // Get chunk count
-        const chunkCountResult = await backend.get_asset_chunk_count(assetPath);
-        if (!chunkCountResult.Ok) {
-          throw new Error('Failed to get chunk count');
-        }
-        
-        const chunkCount = Number(chunkCountResult.Ok);
-        const chunks = [];
-        
-        // Download all chunks
-        for (let i = 0; i < chunkCount; i++) {
-          const chunkResult = await backend.get_asset_chunk(assetPath, i);
-          if (!chunkResult.Ok) {
-            throw new Error(`Failed to download chunk ${i}`);
-          }
-          chunks.push(...chunkResult.Ok);
-        }
-        
-        // Combine chunks and download
-        const blob = new Blob([new Uint8Array(chunks)], { type: assetType });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      } else {
-        // For small files, sync to frontend and open
-        const syncResult = await backend.sync_asset_to_frontend(assetPath);
-        if (!syncResult.Ok) {
-          throw new Error(syncResult.Err || 'Failed to sync asset');
-        }
-        
-        const syncData = syncResult.Ok;
-        // Extract base64 data from "SYNC_DATA:path:base64data" format
-        const parts = syncData.split(':');
-        if (parts.length < 3 || parts[0] !== 'SYNC_DATA') {
-          throw new Error('Invalid sync data format');
-        }
-        const base64Data = parts.slice(2).join(':'); // Rejoin in case base64 contains colons
-        const binaryData = atob(base64Data);
-        const bytes = new Uint8Array(binaryData.length);
-        for (let i = 0; i < binaryData.length; i++) {
-          bytes[i] = binaryData.charCodeAt(i);
-        }
-        
-        const blob = new Blob([bytes], { type: assetType });
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        URL.revokeObjectURL(url);
-      }
+      // Open IPFS file directly in a new tab
+      const ipfsUrl = getAssetUrl(cid);
+      window.open(ipfsUrl, '_blank');
     } catch (e) {
       alert('View failed: ' + e.message);
     }
@@ -350,23 +286,24 @@ export default function Dashboard() {
           )}
         </section>
 
-        {/* Assets List / Explorer */}
+        {/* IPFS Files List */}
         <section id="assets" className="bg-neutral-900/50 backdrop-blur-sm rounded-2xl p-8 border border-neutral-800 mb-10">
           <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
             <FileText className="w-6 h-6 text-orange-500" />
-            Your CDN Files
+            Your IPFS Files
           </h2>
           {files.length === 0 ? (
             <div className="text-center py-8 text-neutral-400">
               <Cloud className="w-16 h-16 mx-auto mb-4 text-neutral-600" />
-              <p>No files uploaded yet. Upload your first file to get started!</p>
+              <p>No IPFS files uploaded yet. Upload your first file to get started!</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-neutral-700">
-                    <th className="py-3 px-4">Path</th>
+                    <th className="py-3 px-4">Name</th>
+                    <th className="py-3 px-4">CID</th>
                     <th className="py-3 px-4">Size</th>
                     <th className="py-3 px-4">Type</th>
                     <th className="py-3 px-4">Actions</th>
@@ -374,15 +311,16 @@ export default function Dashboard() {
                 </thead>
                 <tbody>
                   {files.map((file, i) => {
-                    const url = getAssetUrl(file.path);
+                    const url = getAssetUrl(file.cid);
                     return (
                       <tr key={i} className="border-b border-neutral-800 hover:bg-neutral-800/50 transition-colors duration-200">
-                        <td className="py-3 px-4 font-mono">{file.path}</td>
+                        <td className="py-3 px-4 font-mono">{file.name}</td>
+                        <td className="py-3 px-4 font-mono text-xs text-neutral-400">{file.cid.substring(0, 20)}...</td>
                         <td className="py-3 px-4">{(Number(file.size)/1024).toFixed(1)} KB</td>
-                        <td className="py-3 px-4">{file.type}</td>
+                        <td className="py-3 px-4">{file.content_type}</td>
                         <td className="py-3 px-4 flex gap-2 items-center">
                           <button 
-                            onClick={() => handleView(file.path, file.type)} 
+                            onClick={() => handleView(file.cid, file.content_type)} 
                             className="text-orange-400 hover:text-orange-300 bg-transparent border-none cursor-pointer p-2 hover:bg-orange-500/10 rounded-lg transition-all duration-200"
                             title="View file"
                           >
@@ -391,8 +329,8 @@ export default function Dashboard() {
                           <button
                             className="text-neutral-400 hover:text-neutral-300 border px-2 py-1 rounded-lg hover:bg-neutral-800 transition-all duration-200 flex items-center gap-1"
                             onClick={() => handleCopyLink(url, i)}
-                            aria-label="Copy asset link"
-                            title="Copy link"
+                            aria-label="Copy IPFS link"
+                            title="Copy IPFS link"
                           >
                             <Copy className="w-3 h-3" />
                             {copiedIndex === i ? 'Copied!' : 'Copy'}
@@ -420,30 +358,46 @@ export default function Dashboard() {
         <section id="docs" className="bg-neutral-900/50 backdrop-blur-sm rounded-2xl p-8 border border-neutral-800 mb-10">
           <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
             <Zap className="w-6 h-6 text-orange-500" />
-            CDN Quick Links
+            IPFS Quick Links
           </h2>
           <ul className="list-disc pl-6 text-neutral-300 space-y-2">
             <li>How to use: <a href="#" className="text-orange-400 hover:underline">See Docs</a></li>
-            <li>API Endpoint Example: <span className="font-mono bg-neutral-800 px-2 py-1 rounded text-sm">http://127.0.0.1:4943/?canisterId={canisterId}&asset=/assets/yourfile.png</span></li>
-            <li>Integration: <span className="font-mono bg-neutral-800 px-2 py-1 rounded text-sm">&lt;img src={`http://127.0.0.1:4943/?canisterId=${canisterId}&asset=/assets/logo.png`} /&gt;</span></li>
+            <li>IPFS Gateway: <span className="font-mono bg-neutral-800 px-2 py-1 rounded text-sm">https://{PINATA_GATEWAY}/ipfs/</span></li>
+            <li>Integration: <span className="font-mono bg-neutral-800 px-2 py-1 rounded text-sm">&lt;img src={`https://${PINATA_GATEWAY}/ipfs/YOUR_CID`} /&gt;</span></li>
           </ul>
         </section>
 
         {/* Stats Section */}
         <section className="bg-gradient-to-r from-orange-500/10 to-orange-800/10 rounded-2xl p-8 border border-orange-500/20 mb-10">
-          <h2 className="text-2xl font-semibold mb-6 text-center">Network Stats</h2>
+          <h2 className="text-2xl font-semibold mb-6 text-center">IPFS Storage Stats</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             <div className="text-center">
               <div className="text-4xl font-bold text-orange-500">{files.length}</div>
-              <div className="text-neutral-400">Total Assets</div>
+              <div className="text-neutral-400">Total IPFS Files</div>
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-orange-500">{(files.reduce((a, b) => Number(a) + Number(b.size), 0)/1024).toFixed(1)} KB</div>
-              <div className="text-neutral-400">Total Storage Used</div>
+              {(() => {
+                const used = files.reduce((a, b) => Number(a) + Number(b.size), 0);
+                const usedMB = (used / 1024 / 1024).toFixed(2);
+                const percent = Math.min((used / PINATA_STORAGE_LIMIT) * 100, 100);
+                return (
+                  <>
+                    <div className="text-4xl font-bold text-orange-500">{usedMB} MB</div>
+                    <div className="text-neutral-400 mb-2">Storage Used</div>
+                    <div className="w-full bg-neutral-800 rounded-full h-3 mb-1">
+                      <div
+                        className="bg-gradient-to-r from-orange-500 to-orange-700 h-3 rounded-full transition-all duration-300"
+                        style={{ width: `${percent}%` }}
+                      ></div>
+                    </div>
+                    <div className="text-xs text-neutral-400">{usedMB} MB / 1 GB</div>
+                  </>
+                );
+              })()}
             </div>
             <div className="text-center">
-              <div className="text-4xl font-bold text-orange-500">99.99%</div>
-              <div className="text-neutral-400">Uptime</div>
+              <div className="text-4xl font-bold text-orange-500">1 GB</div>
+              <div className="text-neutral-400">Storage Limit</div>
             </div>
           </div>
         </section>

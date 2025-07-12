@@ -9,7 +9,10 @@
     "prebuild": "npm run prebuild --workspaces --if-present",
     "pretest": "npm run prebuild --workspaces --if-present",
     "start": "npm start --workspaces --if-present",
-    "test": "npm test --workspaces --if-present"
+    "test": "npm test --workspaces --if-present",
+    "deploy": "./deploy_with_env.sh",
+    "deploy:env": "./setup_env.sh",
+    "deploy:quick": "dfx deploy && ./setup_env.sh"
   },
   "type": "module",
   "workspaces": [

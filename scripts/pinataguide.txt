@@ -1,0 +1,242 @@
+Frameworks
+React
+
+Open in Claude
+
+Since React is a client side framework it is recommend to handle uploads using Presigned URLs using a server side framework like Hono. We would highly recommend following the Hono guide below before doing this React guide!
+
+Hono Guide
+​
+Installation
+​
+Get Gateway URL
+Before we start you’ll need your Dedicated Gateway domain. When you create a Pinata account, you’ll automatically have a Gateway created for you! To see it, simply visit the Gateways Page see it listed there.
+
+
+The gateway domains are randomly generated and might look something like this:
+
+
+Copy
+aquamarine-casual-tarantula-177.mypinata.cloud
+​
+Start up React Project
+Run the command below to make a new React project:
+
+
+Copy
+npm create vite@latest
+Give the project a name and select the React framework. Then cd into the project and install pinata.
+
+
+Copy
+npm i pinata
+After making the project, create a .env.local file in the root of the project and put in the following variable:
+
+
+Copy
+VITE_SERVER_URL=
+VITE_GATEWAY_URL=
+The VITE_SERVER_URL is the URL of your server endpoint that will return Presigned URLs. If you don’t have one be sure to follow the Hono guide first. If you did follow it then you’ll remember it was http://localhost:8787 and we’ll need to make sure it’s running in order for our flow to work.
+
+The format of the Gateway domain should be mydomain.mypinata.cloud.
+
+​
+Implementation
+Now that we have our initial setup, open the src/App.tsx file and replace it with the following code.
+
+src/App.tsx
+
+Copy
+import { useState } from 'react'
+import reactLogo from './assets/react.svg'
+import viteLogo from '/vite.svg'
+import './App.css'
+import { PinataSDK } from 'pinata'
+
+const pinata = new PinataSDK({
+  pinataJwt: "",
+  pinataGateway: import.meta.env.VITE_GATEWAY_URL
+})
+
+function App() {
+  const [file, setFile] = useState<File | null>(null)
+  const [uploadStatus, setUploadStatus] = useState('')
+  const [link, setLink] = useState('')
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      setFile(e.target.files[0])
+    }
+  }
+
+  const handleUpload = async () => {
+    if (!file) return
+
+    try {
+      setUploadStatus('Getting upload URL...')
+      const urlResponse = await fetch(`${import.meta.env.VITE_SERVER_URL}/presigned_url`, {
+        method: "GET",
+        headers: {
+          // Handle your own server authorization here
+        }
+      })
+      const data = await urlResponse.json()
+
+      setUploadStatus('Uploading file...')
+
+      const upload = await pinata.upload.public
+        .file(file)
+        .url(data.url)
+
+      if (upload.cid) {
+        setUploadStatus('File uploaded successfully!')
+        const ipfsLink = await pinata.gateways.public.convert(upload.cid)
+        setLink(ipfsLink)
+      } else {
+        setUploadStatus('Upload failed')
+      }
+    } catch (error) {
+      setUploadStatus(`Error: ${error instanceof Error ? error.message : String(error)}`)
+    }
+  }
+
+  return (
+    <>
+      <div>
+        <a href="<https://vite.dev>" target="_blank">
+          <img src={viteLogo} className="logo" alt="Vite logo" />
+        </a>
+        <a href="<https://react.dev>" target="_blank">
+          <img src={reactLogo} className="logo react" alt="React logo" />
+        </a>
+      </div>
+      <h1>Vite + React + Pinata</h1>
+      <div className="card">
+        <input type="file" onChange={handleFileChange} />
+        <button onClick={handleUpload} disabled={!file}>
+          Upload to Pinata
+        </button>
+        {uploadStatus && <p>{uploadStatus}</p>}
+        {link && <a href={link} target='_blank'>View File</a>}
+      </div>
+      <p className="read-the-docs">
+        Click on the Vite and React logos to learn more
+      </p>
+    </>
+  )
+}
+
+export default App
+In our code we have a pretty simple form that will trigger handleSubmit(). This function will do the following:
+
+Make a request to our server for a Presigned URL (you will want to handle any server side auth here)
+Use the returned Presigned URL in a client side upload
+Use the upload response to create a link to the file
+To try it out make sure your server is running, then in another terminal Run
+
+
+Copy
+npm run dev
+Open up the site on http://localhost:5173 and upload a file!
+
+Suggest edits
+Hono
+SvelteKit
+website
+twitter
+github
+linkedin
+
+
+
+Your plan is **very solid** and aligns with best practices for hybrid decentralized storage! Here’s a breakdown of your approach and some important considerations:
+
+---
+
+## **Your Plan:**
+1. **All user uploads go to Pinata/IPFS.**
+2. **If the file is private/confidential:**
+   - Encrypt it (client-side or backend-side) before uploading to Pinata.
+   - Store the encryption key (or a key reference) securely in the canister, associated with the user and file metadata.
+   - When the user requests the file, fetch from IPFS, decrypt, and deliver.
+3. **If the file is public:**
+   - Upload as-is to Pinata/IPFS.
+   - Store the CID and metadata in the canister.
+4. **Small/critical bytes (e.g., metadata, access control, keys):**
+   - Store directly in the canister for fast, certified, and private access.
+
+---
+
+## **Why This Is a Good Plan**
+
+- **Scalability:**  
+  - Offloads large file storage to IPFS, which is cheap and scalable.
+- **Privacy:**  
+  - Ensures private files are encrypted before leaving the user’s trust boundary.
+- **Decentralization:**  
+  - Uses both the IC and IPFS for a robust, censorship-resistant solution.
+- **Cost Efficiency:**  
+  - Keeps canister storage costs low by only storing what’s necessary.
+- **Flexibility:**  
+  - You can support both public and private content, and even allow users to toggle privacy.
+
+---
+
+## **Implementation Considerations**
+
+### **Encryption**
+- **Client-side encryption** (in the browser) is best for true privacy (the server never sees the plaintext).
+- **Backend encryption** is easier to implement but less private (the server can see the file).
+- Use strong, standard encryption (e.g., AES-GCM).
+- Store the encryption key (or a key reference) in the canister, associated with the user and file.
+
+### **Metadata in Canister**
+- Store:
+  - CID (IPFS hash)
+  - File name/path
+  - Owner principal
+  - IsPrivate flag
+  - (If private) Encrypted key or key reference
+
+### **File Retrieval**
+- For private files:
+  1. Fetch encrypted file from IPFS.
+  2. Decrypt using the key from the canister.
+  3. Serve to the user.
+- For public files:
+  - Serve directly from IPFS gateway.
+
+### **Access Control**
+- Only allow the owner (or authorized users) to fetch the decryption key from the canister.
+
+---
+
+## **Potential Enhancements**
+- **Key management:** Use user passwords, Internet Identity, or a key management service for encryption keys.
+- **Chunking:** For very large files, chunk and encrypt each chunk separately.
+- **Auditing:** Log access to private files for transparency.
+
+---
+
+## **Summary Table**
+
+| File Type      | Storage      | Encryption | Access Flow                        |
+|----------------|-------------|------------|------------------------------------|
+| Public         | Pinata/IPFS  | No         | Direct IPFS link                   |
+| Private        | Pinata/IPFS  | Yes        | Fetch from IPFS, decrypt with key  |
+| Metadata/keys  | Canister     | N/A        | Certified, private, fast           |
+
+---
+
+## **Conclusion**
+- **This is a modern, secure, and scalable architecture for decentralized file storage.**
+- **You get the best of both worlds:** privacy and certification for sensitive data, and cheap, global distribution for public files.
+
+---
+
+**If you want, I can provide:**
+- A code template for client-side encryption/decryption.
+- A backend handler for Pinata uploads.
+- A canister data model for storing CIDs and keys.
+
+Let me know which part you want to implement first!
