@@ -19,10 +19,10 @@ export default function Dashboard() {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatus, setUploadStatus] = useState('');
-  // Replace assets state with files state
-  const [files, setFiles] = useState([]);
-  const [file, setFile] = useState(null);
-  const [path, setPath] = useState('');
+  // Multiple file upload state
+  const [files, setFiles] = useState([]); // <-- restore this line
+  const [selectedFiles, setSelectedFiles] = useState([]); // Array of File
+  const [pathMap, setPathMap] = useState({}); // { filename: path }
   const [deleting, setDeleting] = useState('');
   const [copiedIndex, setCopiedIndex] = useState(null);
   const backendRef = useRef(null);
@@ -33,6 +33,10 @@ export default function Dashboard() {
 
   // Pinata storage limit in bytes
   const PINATA_STORAGE_LIMIT = 1073741824; // 1 GB
+
+  // Per-file progress and status
+  const [fileProgress, setFileProgress] = useState({}); // { filename: percent }
+  const [fileStatus, setFileStatus] = useState({}); // { filename: status string }
 
   // On mount, use loadIpfsFiles instead of loadAssetsWithInfo
   useEffect(() => {
@@ -67,63 +71,159 @@ export default function Dashboard() {
     }
   };
 
+  // Handle file input change (multiple)
   const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      // Auto-generate path if not set
-      if (!path) {
-        const filename = selectedFile.name;
-        setPath(`/assets/${filename}`);
-      }
+    const files = Array.from(e.target.files);
+    setSelectedFiles(prev => [...prev, ...files]);
+    setPathMap(prev => {
+      const newMap = { ...prev };
+      files.forEach(f => {
+        if (!newMap[f.name]) newMap[f.name] = `/assets/${f.name}`;
+      });
+      return newMap;
+    });
+  };
+
+  // Drag and drop handlers
+  const handleDrop = (e) => {
+    e.preventDefault();
+    const files = Array.from(e.dataTransfer.files);
+    setSelectedFiles(prev => [...prev, ...files]);
+    setPathMap(prev => {
+      const newMap = { ...prev };
+      files.forEach(f => {
+        if (!newMap[f.name]) newMap[f.name] = `/assets/${f.name}`;
+      });
+      return newMap;
+    });
+  };
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  // Remove file from selection
+  const handleRemoveFile = (name) => {
+    setSelectedFiles(prev => prev.filter(f => f.name !== name));
+    setPathMap(prev => {
+      const newMap = { ...prev };
+      delete newMap[name];
+      return newMap;
+    });
+  };
+
+  // Update path for a file
+  const handlePathChange = (name, value) => {
+    setPathMap(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Limited parallel upload queue
+  const uploadSingleFile = async (file) => {
+    setFileStatus(prev => ({ ...prev, [file.name]: 'Uploading...' }));
+    try {
+      // 1. Upload to backend /upload endpoint
+      const formData = new FormData();
+      formData.append('file', file);
+      const xhr = new XMLHttpRequest();
+      const uploadPromise = new Promise((resolve, reject) => {
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            const percent = Math.round((event.loaded / event.total) * 100);
+            setFileProgress(prev => ({ ...prev, [file.name]: percent }));
+          }
+        };
+        xhr.onload = async () => {
+          if (xhr.status === 200) {
+            const data = JSON.parse(xhr.responseText);
+            if (!data.success) {
+              setFileStatus(prev => ({ ...prev, [file.name]: '❌ Upload failed' }));
+              reject(new Error(data.error || 'Backend upload failed'));
+              return;
+            }
+            setFileProgress(prev => ({ ...prev, [file.name]: 100 }));
+            setFileStatus(prev => ({ ...prev, [file.name]: 'Storing metadata...' }));
+            // 2. Store metadata in backend canister
+            const backend = backendRef.current;
+            if (!backend) {
+              setFileStatus(prev => ({ ...prev, [file.name]: '❌ No backend' }));
+              reject(new Error('No authenticated backend available'));
+              return;
+            }
+            const result = await backend.add_ipfs_file(
+              data.fileName,
+              data.ipfsHash,
+              BigInt(data.size),
+              data.contentType
+            );
+            if (!result.Ok) {
+              setFileStatus(prev => ({ ...prev, [file.name]: '❌ Metadata store failed' }));
+              reject(new Error(result.Err || 'Backend metadata store failed'));
+              return;
+            }
+            setFileStatus(prev => ({ ...prev, [file.name]: '✅ Uploaded!' }));
+            resolve();
+          } else {
+            setFileStatus(prev => ({ ...prev, [file.name]: '❌ Upload failed' }));
+            reject(new Error('Upload failed'));
+          }
+        };
+        xhr.onerror = () => {
+          setFileStatus(prev => ({ ...prev, [file.name]: '❌ Upload failed' }));
+          reject(new Error('Upload failed'));
+        };
+        xhr.open('POST', 'http://localhost:8787/upload');
+        xhr.send(formData);
+      });
+      await uploadPromise;
+    } catch (e) {
+      // Error already handled above
     }
   };
 
-  // Replace handleUpload with Pinata upload + add_ipfs_file
+  // Limited parallel upload queue
   const handleUpload = async () => {
     if (!isLoggedIn) {
       alert('Please log in to upload files');
       return;
     }
-    if (!file) {
-      alert('Please select a file');
+    if (!selectedFiles.length) {
+      alert('Please select files');
       return;
     }
     setUploading(true);
-    setUploadProgress(0);
-    setUploadStatus('Uploading to backend...');
-    abortControllerRef.current = new AbortController();
-    try {
-      // 1. Upload to backend /upload endpoint
-      const formData = new FormData();
-      formData.append('file', file);
-      const response = await fetch('http://localhost:8787/upload', {
-        method: 'POST',
-        body: formData,
-      });
-      const data = await response.json();
-      if (!data.success) throw new Error(data.error || 'Backend upload failed');
-      setUploadProgress(100);
-      setUploadStatus('Pinata upload successful! Storing metadata...');
-      // 2. Store metadata in backend canister
-      const backend = backendRef.current;
-      if (!backend) throw new Error('No authenticated backend available');
-      const result = await backend.add_ipfs_file(
-        data.fileName,
-        data.ipfsHash,
-        BigInt(data.size),
-        data.contentType
-      );
-      if (!result.Ok) throw new Error(result.Err || 'Backend metadata store failed');
-      setUploadStatus('✅ File uploaded and metadata stored!');
-      await loadIpfsFiles(backend);
-      setFile(null);
-    } catch (e) {
-      setUploadStatus('❌ Upload failed: ' + e.message);
-      alert('Upload failed: ' + e.message);
-    }
-    setUploading(false);
-    abortControllerRef.current = null;
+    setUploadStatus('Uploading files...');
+    setFileProgress({});
+    setFileStatus({});
+    let queue = [...selectedFiles];
+    let active = 0;
+    let completed = 0;
+    let nextIndex = 0;
+    const results = [];
+    return new Promise((resolve) => {
+      const startNext = () => {
+        if (nextIndex >= queue.length) {
+          if (active === 0) {
+            setUploading(false);
+            setUploadStatus('✅ All uploads complete!');
+            loadIpfsFiles(backendRef.current);
+            setSelectedFiles([]);
+            setPathMap({});
+            resolve();
+          }
+          return;
+        }
+        const file = queue[nextIndex++];
+        active++;
+        uploadSingleFile(file).finally(() => {
+          active--;
+          completed++;
+          setUploadStatus(`Uploading files... (${completed}/${queue.length})`);
+          startNext();
+        });
+      };
+      for (let i = 0; i < Math.min(3, queue.length); i++) {
+        startNext();
+      }
+    });
   };
 
   const handleCancelUpload = () => {
@@ -235,37 +335,91 @@ export default function Dashboard() {
             <Upload className="w-6 h-6 text-orange-500" />
             Upload Your Assets
           </h2>
-          <div className="flex flex-col md:flex-row items-center gap-4">
-            <input type="file" onChange={handleFileChange} className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 transition-all duration-200" />
-            <input type="text" value={path} onChange={e => setPath(e.target.value)} placeholder="/assets/yourfile.png" className="bg-neutral-800 px-3 py-2 rounded-lg w-full md:w-1/2 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500" />
+          <div
+            className="flex flex-col md:flex-row items-center gap-4 border-2 border-dashed border-orange-500/30 rounded-lg p-4 mb-4 bg-neutral-900/30 hover:bg-orange-900/10 transition-colors duration-200"
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+          >
+            <input
+              type="file"
+              multiple
+              onChange={handleFileChange}
+              className="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100 transition-all duration-200"
+            />
+            <span className="text-neutral-400 text-sm">or drag and drop files here</span>
             <div className="flex gap-2">
-              <motion.button onClick={handleUpload} disabled={uploading || !file} className="bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800 px-4 py-2 rounded-lg disabled:opacity-50 transition-all duration-300 flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500" whileHover={{ scale: 1.07 }} whileTap={{ scale: 0.97 }}>
+              <motion.button
+                onClick={handleUpload}
+                disabled={uploading || !selectedFiles.length}
+                className="bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800 px-4 py-2 rounded-lg disabled:opacity-50 transition-all duration-300 flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                whileHover={{ scale: 1.07 }}
+                whileTap={{ scale: 0.97 }}
+              >
                 <Upload className="w-4 h-4" />
                 {uploading ? 'Uploading...' : 'Upload'}
               </motion.button>
               <AnimatePresence>
                 {uploading && (
-                  <motion.button onClick={handleCancelUpload} className="bg-red-700 hover:bg-red-800 px-4 py-2 rounded-lg transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                  <motion.button
+                    onClick={handleCancelUpload}
+                    className="bg-red-700 hover:bg-red-800 px-4 py-2 rounded-lg transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  >
                     Cancel
                   </motion.button>
                 )}
               </AnimatePresence>
             </div>
           </div>
-          {/* File Info */}
+          {/* Selected Files List */}
           <AnimatePresence>
-            {file && (
+            {selectedFiles.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 10 }} className="mt-4 p-4 bg-neutral-800 rounded-lg border border-neutral-700">
-                <p className="text-sm text-neutral-300">
-                  <strong>File:</strong> {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                </p>
-                <p className="text-sm text-neutral-400">
-                  {file.size > CHUNK_SIZE ? 
-                    `Will use chunked upload (${Math.ceil(file.size / CHUNK_SIZE)} chunks of 500KB each)` : 
-                    'Will use single upload'
-                  }
-                </p>
-                <p className="text-xs text-neutral-500 mt-1">
+                <p className="text-sm text-neutral-300 mb-2 font-semibold">Selected Files:</p>
+                <ul className="space-y-2">
+                  {selectedFiles.map((file, idx) => (
+                    <li key={file.name} className="flex flex-col md:flex-row md:items-center justify-between gap-2">
+                      <div className="flex-1">
+                        <span className="font-mono text-orange-300">{file.name}</span>
+                        <span className="ml-2 text-xs text-neutral-400">({(file.size / 1024 / 1024).toFixed(2)} MB)</span>
+                        <input
+                          type="text"
+                          value={pathMap[file.name] || ''}
+                          onChange={e => handlePathChange(file.name, e.target.value)}
+                          className="ml-4 bg-neutral-900 px-2 py-1 rounded text-xs text-white border border-neutral-700 w-48"
+                          placeholder="/assets/yourfile.png"
+                        />
+                      </div>
+                      <div className="flex flex-col md:flex-row md:items-center gap-2 min-w-[180px]">
+                        <div className="w-32">
+                          <div className="w-full bg-neutral-700 rounded-full h-2 mb-1">
+                            <div
+                              className="bg-gradient-to-r from-orange-500 to-orange-700 h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${fileProgress[file.name] || 0}%` }}
+                            ></div>
+                          </div>
+                          <div className="text-xs text-neutral-400 text-right">
+                            {fileProgress[file.name] ? `${fileProgress[file.name]}%` : ''}
+                          </div>
+                        </div>
+                        <div className="text-xs min-w-[80px] text-neutral-400">
+                          {fileStatus[file.name] || 'Pending'}
+                        </div>
+                        <button
+                          onClick={() => handleRemoveFile(file.name)}
+                          className="text-red-400 hover:text-red-300 px-2 py-1 rounded-lg border border-red-400 text-xs"
+                          title="Remove file"
+                          disabled={uploading}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+                <p className="text-xs text-neutral-500 mt-2">
                   Supported formats: Images (PNG, JPG, GIF, SVG), Videos (MP4), Documents (PDF), Web (HTML, CSS, JS), Fonts (WOFF, TTF)
                 </p>
               </motion.div>
@@ -280,15 +434,15 @@ export default function Dashboard() {
                   <span>{uploadProgress}%</span>
                 </div>
                 <div className="w-full bg-neutral-800 rounded-full h-2">
-                  <motion.div 
-                    className="bg-gradient-to-r from-orange-500 to-orange-700 h-2 rounded-full transition-all duration-300" 
+                  <motion.div
+                    className="bg-gradient-to-r from-orange-500 to-orange-700 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${uploadProgress}%` }}
                     initial={{ width: 0 }}
                     animate={{ width: `${uploadProgress}%` }}
                   ></motion.div>
                 </div>
                 <div className="flex justify-between text-xs text-neutral-500 mt-2">
-                  <span>Chunked Upload Active</span>
+                  <span>Uploading {selectedFiles.length} file(s)</span>
                 </div>
               </motion.div>
             )}
