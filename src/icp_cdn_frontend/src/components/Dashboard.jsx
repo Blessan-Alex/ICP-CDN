@@ -8,10 +8,31 @@ import { motion, AnimatePresence } from 'framer-motion';
 import undrawShare from "../assets/undraw_share-link_jr6w.svg";
 import undrawStars from "../assets/undraw_to-the-stars_tz9v.svg";
 import undrawFolderFiles from "../assets/undraw_folder-files_5www.svg";
+import { Image, FileText as FileTextIcon, Video, File as FileIcon, Music, FileArchive, FileCode, FileSpreadsheet } from 'lucide-react';
 
 const PINATA_GATEWAY = "black-defensive-zebra-94.mypinata.cloud";
 const getAssetUrl = (cid) => {
   return `https://${PINATA_GATEWAY}/ipfs/${cid}`;
+};
+
+// Helper to get file icon or thumbnail
+const getFileIcon = (file) => {
+  const type = file.content_type || file.type || '';
+  if (type.startsWith('image/')) {
+    // Show thumbnail for images
+    if (file.url) {
+      return <img src={file.url} alt={file.name} className="w-8 h-8 object-cover rounded shadow border border-neutral-800" />;
+    }
+    return <Image className="w-6 h-6 text-orange-400" />;
+  }
+  if (type.startsWith('video/')) return <Video className="w-6 h-6 text-orange-400" />;
+  if (type.startsWith('audio/')) return <Music className="w-6 h-6 text-orange-400" />;
+  if (type.includes('pdf')) return <FileIcon className="w-6 h-6 text-orange-400" />;
+  if (type.includes('zip') || type.includes('rar')) return <FileArchive className="w-6 h-6 text-orange-400" />;
+  if (type.includes('spreadsheet') || type.includes('excel')) return <FileSpreadsheet className="w-6 h-6 text-orange-400" />;
+  if (type.includes('word')) return <FileIcon className="w-6 h-6 text-orange-400" />;
+  if (type.includes('code') || type.includes('javascript') || type.includes('json')) return <FileCode className="w-6 h-6 text-orange-400" />;
+  return <FileIcon className="w-6 h-6 text-orange-400" />;
 };
 
 export default function Dashboard() {
@@ -27,6 +48,7 @@ export default function Dashboard() {
   const [copiedIndex, setCopiedIndex] = useState(null);
   const backendRef = useRef(null);
   const abortControllerRef = useRef(null);
+  const fileInputRef = useRef(null);
   
   // Chunk size for uploads (500KB chunks to avoid payload limits)
   const CHUNK_SIZE = 512 * 1024;
@@ -37,6 +59,11 @@ export default function Dashboard() {
   // Per-file progress and status
   const [fileProgress, setFileProgress] = useState({}); // { filename: percent }
   const [fileStatus, setFileStatus] = useState({}); // { filename: status string }
+
+  // Modal for delete confirmation
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [loadingTimeout, setLoadingTimeout] = useState(false);
 
   // On mount, use loadIpfsFiles instead of loadAssetsWithInfo
   useEffect(() => {
@@ -234,23 +261,30 @@ export default function Dashboard() {
     }
   };
 
-  // Replace handleDelete to use delete_ipfs_file
-  const handleDelete = async (cid) => {
-    if (!isLoggedIn) {
-      alert('Please log in to delete files');
-      return;
-    }
-    setDeleting(cid);
+  // Replace handleDelete to use custom modal
+  const handleDelete = (cid) => {
+    setDeleteTarget(cid);
+    setShowDeleteModal(true);
+  };
+  const confirmDelete = async () => {
+    setShowDeleteModal(false);
+    if (!isLoggedIn || !deleteTarget) return;
+    setDeleting(deleteTarget);
     try {
       const backend = backendRef.current;
       if (!backend) throw new Error('No authenticated backend available');
-      const result = await backend.delete_ipfs_file(cid);
+      const result = await backend.delete_ipfs_file(deleteTarget);
       if (!result.Ok) throw new Error(result.Err || 'Delete failed');
       await loadIpfsFiles(backend);
     } catch (e) {
       alert('Delete failed: ' + e.message);
     }
     setDeleting('');
+    setDeleteTarget(null);
+  };
+  const cancelDelete = () => {
+    setShowDeleteModal(false);
+    setDeleteTarget(null);
   };
 
   const handleCopyLink = async (url, i) => {
@@ -280,6 +314,15 @@ export default function Dashboard() {
 
   // Loading skeleton for files
   const filesLoading = isLoggedIn && files.length === 0 && !uploading;
+
+  useEffect(() => {
+    if (isLoggedIn && files.length === 0 && !uploading) {
+      // Fallback: if loading takes >5s, show empty state anyway
+      const timeout = setTimeout(() => setLoadingTimeout(true), 5000);
+      return () => clearTimeout(timeout);
+    }
+    setLoadingTimeout(false);
+  }, [isLoggedIn, files.length, uploading]);
 
   if (!isLoggedIn) {
     return (
@@ -341,6 +384,7 @@ export default function Dashboard() {
             onDragOver={handleDragOver}
           >
             <input
+              ref={fileInputRef}
               type="file"
               multiple
               onChange={handleFileChange}
@@ -424,6 +468,19 @@ export default function Dashboard() {
                 </p>
               </motion.div>
             )}
+            {selectedFiles.length > 0 && (
+              <button
+                onClick={() => {
+                  setSelectedFiles([]);
+                  setPathMap({});
+                  if (fileInputRef.current) fileInputRef.current.value = null;
+                }}
+                className="ml-2 px-3 py-1 rounded bg-red-700 text-white text-xs hover:bg-red-800 transition-all border border-red-900"
+                disabled={uploading}
+              >
+                Clear All
+              </button>
+            )}
           </AnimatePresence>
           {/* Upload Progress */}
           <AnimatePresence>
@@ -463,17 +520,24 @@ export default function Dashboard() {
             <FileText className="w-6 h-6 text-orange-500" />
             Your IPFS Files
           </h2>
-          {filesLoading ? (
-            <div className="space-y-4">
-              {[...Array(3)].map((_, i) => (
-                <motion.div key={i} className="animate-pulse bg-neutral-800/80 rounded-xl h-16 w-full" initial={{ opacity: 0 }} animate={{ opacity: 1 }} />
-              ))}
+          {(filesLoading && !loadingTimeout) ? (
+            <div className="flex flex-col items-center justify-center min-h-[300px]">
+              <div className="animate-spin mb-4"><Cloud className="w-16 h-16 text-neutral-600" /></div>
+              <p className="text-neutral-400">Loading files...</p>
             </div>
           ) : files.length === 0 ? (
-            <motion.div className="text-center py-8 text-neutral-400" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-              <Cloud className="w-16 h-16 mx-auto mb-4 text-neutral-600" />
-              <p>No IPFS files uploaded yet. Upload your first file to get started!</p>
-            </motion.div>
+            <div className="relative flex flex-col items-center justify-center min-h-[300px]">
+              <div className="relative z-10 bg-white/10 dark:bg-neutral-900/40 backdrop-blur-xl rounded-2xl p-8 border border-white/30 dark:border-neutral-700 shadow-xl flex flex-col items-center">
+                <h3 className="text-2xl font-bold mb-2 text-orange-400">No files uploaded yet</h3>
+                <p className="text-neutral-300 mb-4">Upload your first file to get started!</p>
+                <button
+                  onClick={() => document.getElementById('upload').scrollIntoView({ behavior: 'smooth' })}
+                  className="bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800 px-6 py-2 rounded-lg text-white font-semibold shadow-lg"
+                >
+                  Upload Now
+                </button>
+              </div>
+            </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left">
@@ -500,7 +564,7 @@ export default function Dashboard() {
                         <td className="py-3 px-4 font-mono">{file.name}</td>
                         <td className="py-3 px-4 font-mono text-xs text-neutral-400">{file.cid.substring(0, 20)}...</td>
                         <td className="py-3 px-4">{(Number(file.size)/1024).toFixed(1)} KB</td>
-                        <td className="py-3 px-4">{file.content_type}</td>
+                        <td className="py-3 px-4">{getFileIcon(file)}</td>
                         <td className="py-3 px-4 flex gap-2 items-center">
                           <motion.button
                             onClick={() => handleView(file.cid, file.content_type)}
@@ -591,6 +655,19 @@ export default function Dashboard() {
           </div>
         </motion.section>
       </div>
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white/10 dark:bg-neutral-900/60 border border-white/20 dark:border-neutral-700 rounded-2xl shadow-2xl p-8 max-w-sm w-full flex flex-col items-center glassmorphism-modal">
+            <Trash2 className="w-12 h-12 text-red-400 mb-4" />
+            <h2 className="text-xl font-bold mb-2 text-orange-400">Delete File?</h2>
+            <p className="text-neutral-300 mb-6 text-center">Are you sure you want to delete this file? This action cannot be undone.</p>
+            <div className="flex gap-4 w-full justify-center">
+              <button onClick={confirmDelete} className="bg-gradient-to-r from-red-500 to-orange-700 hover:from-red-600 hover:to-orange-800 px-6 py-2 rounded-lg text-white font-semibold shadow-lg">Delete</button>
+              <button onClick={cancelDelete} className="bg-white/20 dark:bg-neutral-800/40 border border-orange-500 px-6 py-2 rounded-lg text-orange-400 font-semibold hover:bg-orange-900/20">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 } 

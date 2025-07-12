@@ -68,16 +68,21 @@ const Navbar = () => {
 
   return (
     <nav
-      className={`sticky top-0 z-50 py-1 backdrop-blur-lg border-b border-neutral-700/80 transition-shadow duration-300 ${
-        scrolled ? "shadow-xl shadow-orange-900/10" : ""
-      } bg-white/70 dark:bg-neutral-950/80`}
+      className={`sticky top-0 z-50 py-0.5
+        bg-white/30 dark:bg-neutral-900/30
+        backdrop-blur-2xl
+        border-b border-white/30 dark:border-neutral-800/60
+        shadow-lg shadow-black/10
+        transition-shadow duration-300
+        ${scrolled ? "shadow-xl shadow-orange-900/10" : ""}
+      `}
       aria-label="Main navigation"
     >
       <div className="container px-4 mx-auto relative lg:text-sm min-h-0">
         <div className="flex justify-between items-center min-h-0">
           <div className="flex items-center flex-shrink-0">
             <img src={logo} alt="Logo" className="h-20 w-20 rounded-full animate-spin-custom" />
-            <span className="text-xl tracking-tight ml-2">CanisterDrop</span>
+            <span className="text-2xl sm:text-3xl font-bold tracking-tight ml-2">CanisterDrop</span>
           </div>
           {/* Desktop Navigation */}
           <div className="hidden lg:flex items-center space-x-8">
