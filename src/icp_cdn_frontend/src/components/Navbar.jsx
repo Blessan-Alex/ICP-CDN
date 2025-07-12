@@ -1,5 +1,6 @@
-import { Menu, X } from "lucide-react";
-import { useState } from "react";
+import { Menu, X, Sun, Moon } from "lucide-react";
+import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/logo.png";
 import { navItems, dashboardNavItem } from "../constants";
 import { Link, useNavigate, useLocation } from "react-router-dom";
@@ -11,6 +12,13 @@ const Navbar = () => {
   const { isLoggedIn, logout: handleLogout, forceCheckAuth } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 10);
+    window.addEventListener("scroll", onScroll);
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
   const toggleNavbar = () => {
     setMobileDrawerOpen(!mobileDrawerOpen);
@@ -59,113 +67,151 @@ const Navbar = () => {
   const isOnDashboard = location.pathname === '/dashboard';
 
   return (
-    <nav className="sticky top-0 z-50 py-1 backdrop-blur-lg border-b border-neutral-700/80">
+    <nav
+      className={`sticky top-0 z-50 py-1 backdrop-blur-lg border-b border-neutral-700/80 transition-shadow duration-300 ${
+        scrolled ? "shadow-xl shadow-orange-900/10" : ""
+      } bg-white/70 dark:bg-neutral-950/80`}
+      aria-label="Main navigation"
+    >
       <div className="container px-4 mx-auto relative lg:text-sm min-h-0">
         <div className="flex justify-between items-center min-h-0">
           <div className="flex items-center flex-shrink-0">
             <img src={logo} alt="Logo" className="h-20 w-20 rounded-full animate-spin-custom" />
-            <span className="text-xl tracking-tight">CanisterDrop</span>
+            <span className="text-xl tracking-tight ml-2">CanisterDrop</span>
           </div>
-          
           {/* Desktop Navigation */}
           <div className="hidden lg:flex items-center space-x-8">
-            {/* Home Page Links Group */}
             <div className="flex items-center space-x-8">
               {navItems.map((item, index) => (
                 <button
                   key={index}
                   onClick={() => handleNavClick(item.href, item.type)}
-                  className={`transition-colors duration-200 cursor-pointer ${
-                    isOnDashboard 
-                      ? 'text-neutral-500 cursor-not-allowed opacity-50' 
-                      : 'hover:text-orange-500'
+                  className={`transition-colors duration-200 cursor-pointer relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 ${
+                    isOnDashboard
+                      ? "text-neutral-500 cursor-not-allowed opacity-50"
+                      : "hover:text-orange-500"
                   }`}
                   disabled={isOnDashboard}
-                  title={isOnDashboard ? 'Logout to access home page sections' : item.label}
+                  title={isOnDashboard ? "Logout to access home page sections" : item.label}
+                  aria-label={item.label}
+                  tabIndex={0}
                 >
                   {item.label}
+                  <span className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 group-hover:w-full h-0.5 bg-orange-500 transition-all duration-300" />
                 </button>
               ))}
             </div>
-            
-            {/* Separator */}
             <div className="w-px h-6 bg-neutral-600"></div>
-            
-            {/* Dashboard Link - Unique Styling */}
             <button
               onClick={() => handleNavClick(dashboardNavItem.href, dashboardNavItem.type)}
-              className={`py-2 px-4 rounded-lg font-medium transition-all duration-300 transform hover:scale-105 ${
+              className={`py-2 px-4 rounded-lg font-medium transition-all duration-300 transform focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 hover:scale-105 relative group ${
                 isOnDashboard
-                  ? 'bg-orange-600 text-white cursor-default'
-                  : 'bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800'
+                  ? "bg-orange-600 text-white cursor-default"
+                  : "bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800"
               }`}
+              aria-label={dashboardNavItem.label}
+              tabIndex={0}
             >
               {dashboardNavItem.label}
             </button>
-            
-            {/* Auth Button */}
             <button
               onClick={handleAuthClick}
-              className="border border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white py-2 px-4 rounded-lg transition-all duration-300"
+              className="border border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white py-2 px-4 rounded-lg transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+              aria-label={isLoggedIn ? "Logout" : "Login"}
+              tabIndex={0}
             >
-              {isLoggedIn ? 'Logout' : 'Login'}
+              {isLoggedIn ? "Logout" : "Login"}
             </button>
           </div>
-          
           {/* Mobile Menu Button */}
           <div className="lg:hidden">
-            <button onClick={toggleNavbar}>
-              {mobileDrawerOpen ? <X /> : <Menu />}
-            </button>
+            <motion.button
+              onClick={toggleNavbar}
+              aria-label={mobileDrawerOpen ? "Close menu" : "Open menu"}
+              className="p-2 rounded-full border border-neutral-700 bg-white/70 dark:bg-neutral-900 hover:bg-orange-100 dark:hover:bg-orange-900 transition-colors duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+              whileTap={{ scale: 0.85 }}
+              tabIndex={0}
+            >
+              <AnimatePresence initial={false} mode="wait">
+                {mobileDrawerOpen ? (
+                  <motion.span
+                    key="close"
+                    initial={{ rotate: -90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: 90, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <X />
+                  </motion.span>
+                ) : (
+                  <motion.span
+                    key="open"
+                    initial={{ rotate: 90, opacity: 0 }}
+                    animate={{ rotate: 0, opacity: 1 }}
+                    exit={{ rotate: -90, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <Menu />
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.button>
           </div>
         </div>
-        
         {/* Mobile Navigation */}
-        {mobileDrawerOpen && (
-          <div className="lg:hidden">
-            <div className="px-2 pt-2 pb-3 space-y-1">
-              {/* Home Page Links */}
-              {navItems.map((item, index) => (
+        <AnimatePresence>
+          {mobileDrawerOpen && (
+            <motion.div
+              className="lg:hidden"
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3 }}
+            >
+              <div className="px-2 pt-2 pb-3 space-y-1">
+                {navItems.map((item, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleNavClick(item.href, item.type)}
+                    className={`block px-3 py-2 text-base font-medium transition-colors duration-200 cursor-pointer relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 ${
+                      isOnDashboard
+                        ? "text-neutral-500 cursor-not-allowed opacity-50"
+                        : "hover:text-orange-500"
+                    }`}
+                    disabled={isOnDashboard}
+                    title={isOnDashboard ? "Logout to access home page sections" : item.label}
+                    aria-label={item.label}
+                    tabIndex={0}
+                  >
+                    {item.label}
+                    <span className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 group-hover:w-full h-0.5 bg-orange-500 transition-all duration-300" />
+                  </button>
+                ))}
+                <div className="border-t border-neutral-700 my-2"></div>
                 <button
-                  key={index}
-                  onClick={() => handleNavClick(item.href, item.type)}
-                  className={`block px-3 py-2 text-base font-medium transition-colors duration-200 cursor-pointer ${
-                    isOnDashboard 
-                      ? 'text-neutral-500 cursor-not-allowed opacity-50' 
-                      : 'hover:text-orange-500'
+                  onClick={() => handleNavClick(dashboardNavItem.href, dashboardNavItem.type)}
+                  className={`block w-full text-left px-3 py-2 text-base font-medium rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 ${
+                    isOnDashboard
+                      ? "bg-orange-600 text-white cursor-default"
+                      : "bg-gradient-to-r from-orange-500 to-orange-700"
                   }`}
-                  disabled={isOnDashboard}
-                  title={isOnDashboard ? 'Logout to access home page sections' : item.label}
+                  aria-label={dashboardNavItem.label}
+                  tabIndex={0}
                 >
-                  {item.label}
+                  {dashboardNavItem.label}
                 </button>
-              ))}
-              
-              {/* Separator */}
-              <div className="border-t border-neutral-700 my-2"></div>
-              
-              {/* Dashboard Link */}
-              <button
-                onClick={() => handleNavClick(dashboardNavItem.href, dashboardNavItem.type)}
-                className={`block w-full text-left px-3 py-2 text-base font-medium rounded-lg ${
-                  isOnDashboard
-                    ? 'bg-orange-600 text-white cursor-default'
-                    : 'bg-gradient-to-r from-orange-500 to-orange-700'
-                }`}
-              >
-                {dashboardNavItem.label}
-              </button>
-              
-              {/* Auth Button */}
-              <button
-                onClick={handleAuthClick}
-                className="block w-full text-left px-3 py-2 text-base font-medium border border-orange-500 text-orange-500 rounded-lg"
-              >
-                {isLoggedIn ? 'Logout' : 'Login'}
-              </button>
-            </div>
-          </div>
-        )}
+                <button
+                  onClick={handleAuthClick}
+                  className="block w-full text-left px-3 py-2 text-base font-medium border border-orange-500 text-orange-500 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                  aria-label={isLoggedIn ? "Logout" : "Login"}
+                  tabIndex={0}
+                >
+                  {isLoggedIn ? "Logout" : "Login"}
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </nav>
   );

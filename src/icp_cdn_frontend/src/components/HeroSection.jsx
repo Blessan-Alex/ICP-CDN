@@ -5,6 +5,9 @@ import { ArrowRight, Zap, Shield, Globe } from "lucide-react";
 import undrawUpload from "../assets/undraw_files-uploading_qf8u (1).svg";
 import undrawShare from "../assets/undraw_share-link_jr6w.svg";
 import undrawStars from "../assets/undraw_to-the-stars_tz9v.svg";
+import { motion } from "framer-motion";
+import Lottie from "lottie-react";
+import biofield from "../assets/Biofield.json";
 
 const HeroSection = () => {
   const { isLoggedIn } = useAuth();
@@ -35,70 +38,140 @@ const HeroSection = () => {
 
   return (
     <div className="relative overflow-hidden w-full min-h-screen">
+      {/* Lottie Gradient Animation */}
+      <Lottie
+        animationData={biofield}
+        loop
+        autoplay
+        className="absolute left-1/2 top-20 w-[700px] h-[700px] -translate-x-1/2 -translate-y-1/4 opacity-40 pointer-events-none select-none z-0 mix-blend-lighten"
+        aria-hidden="true"
+        style={{ maxWidth: "80vw", maxHeight: "60vh", opacity: 0.4 }}
+      />
       {/* Background Gradient - Extended to sides */}
-      <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 via-transparent to-orange-800/10"></div>
+      <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 via-transparent to-orange-800/10 z-0"></div>
       
       {/* Main Content */}
       <div className="relative z-10 text-center py-20 max-w-7xl mx-auto px-6">
         {/* Badge */}
-        <div className="inline-flex items-center px-4 py-2 bg-orange-500/10 border border-orange-500/20 rounded-full text-orange-400 text-sm font-medium mb-8">
+        <motion.div
+          initial={{ opacity: 0, y: -30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.7, delay: 0.1 }}
+          className="inline-flex items-center px-4 py-2 bg-orange-500/10 border border-orange-500/20 rounded-full text-orange-400 text-sm font-medium mb-8"
+        >
           <span className="w-2 h-2 bg-orange-500 rounded-full mr-2 animate-pulse"></span>
           Powered by Internet Computer Protocol
-        </div>
+        </motion.div>
 
         {/* Main Heading */}
-        <h1 className="text-5xl sm:text-7xl lg:text-8xl font-bold tracking-tight mb-8">
+        <motion.h1
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.2 }}
+          className="text-5xl sm:text-7xl lg:text-8xl font-bold tracking-tight mb-8"
+        >
           Fast, Secure,{" "}
           <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 text-transparent bg-clip-text">
             Decentralized
           </span>{" "}
           CDN
-        </h1>
+        </motion.h1>
         
-        <h2 className="text-2xl sm:text-3xl lg:text-4xl text-neutral-300 mb-8">
+        <motion.h2
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.3 }}
+          className="text-2xl sm:text-3xl lg:text-4xl text-neutral-300 mb-8"
+        >
           for Your dApps
-        </h2>
+        </motion.h2>
 
         {/* Description */}
-        <p className="text-xl text-neutral-400 max-w-4xl mx-auto mb-12 leading-relaxed">
+        <motion.p
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.4 }}
+          className="text-xl text-neutral-400 max-w-4xl mx-auto mb-12 leading-relaxed"
+        >
           Built on ICP to deliver lightning-fast content without centralized choke points. 
           Experience the future of content delivery with cryptographic security and global distribution.
-        </p>
+        </motion.p>
 
         {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row justify-center items-center gap-4 mb-16">
-          <button
+        <motion.div
+          initial={{ opacity: 0, y: 40 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.5 }}
+          className="flex flex-col sm:flex-row justify-center items-center gap-4 mb-16"
+        >
+          <motion.button
+            whileHover={{ scale: 1.07, boxShadow: "0 4px 24px 0 rgba(255,140,0,0.15)" }}
+            whileTap={{ scale: 0.97 }}
             onClick={handleDeployNow}
-            className="group bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800 py-4 px-8 rounded-xl text-lg font-semibold transition-all duration-300 transform hover:scale-105 hover:shadow-2xl hover:shadow-orange-500/25 flex items-center gap-2"
+            className="group bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800 py-4 px-8 rounded-xl text-lg font-semibold transition-all duration-300 transform flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+            aria-label="Deploy Now"
           >
             Deploy Now
-            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
-          </button>
-          <a 
-            href="#features" 
-            className="group py-4 px-8 rounded-xl text-lg font-semibold border-2 border-neutral-600 hover:border-orange-500 hover:text-orange-500 transition-all duration-300 flex items-center gap-2"
-            onClick={(e) => {
+            <motion.span
+              initial={{ x: 0 }}
+              whileHover={{ x: 6 }}
+              transition={{ type: "spring", stiffness: 300 }}
+              className="inline-block"
+            >
+              <ArrowRight className="w-5 h-5" />
+            </motion.span>
+          </motion.button>
+          <motion.a
+            href="#features"
+            className="group py-4 px-8 rounded-xl text-lg font-semibold border-2 border-neutral-600 hover:border-orange-500 hover:text-orange-500 transition-all duration-300 flex items-center gap-2 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+            onClick={e => {
               e.preventDefault();
               document.querySelector('#features').scrollIntoView({ behavior: 'smooth' });
             }}
+            whileHover={{ scale: 1.07 }}
+            whileTap={{ scale: 0.97 }}
+            aria-label="See Features"
           >
             See Features
-            <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform duration-300" />
-          </a>
-        </div>
+            <motion.span
+              initial={{ x: 0 }}
+              whileHover={{ x: 6 }}
+              transition={{ type: "spring", stiffness: 300 }}
+              className="inline-block"
+            >
+              <ArrowRight className="w-5 h-5" />
+            </motion.span>
+          </motion.a>
+        </motion.div>
 
         {/* Stats */}
-        <div className="flex flex-wrap justify-center gap-8 mb-16">
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.3 }}
+          variants={{
+            hidden: { opacity: 0, y: 40 },
+            visible: { opacity: 1, y: 0, transition: { staggerChildren: 0.15 } },
+          }}
+          className="flex flex-wrap justify-center gap-8 mb-16"
+        >
           {stats.map((stat, index) => (
-            <div key={index} className="flex items-center gap-3 text-neutral-300">
+            <motion.div
+              key={index}
+              variants={{ hidden: { opacity: 0, y: 40 }, visible: { opacity: 1, y: 0 } }}
+              whileHover={{ scale: 1.08, backgroundColor: "rgba(255,140,0,0.07)" }}
+              className="flex items-center gap-3 text-neutral-300 rounded-xl px-4 py-2 transition-colors duration-300 cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+              tabIndex={0}
+              aria-label={stat.label}
+            >
               <div className="text-orange-500">{stat.icon}</div>
               <div className="text-left">
                 <div className="text-2xl font-bold text-white">{stat.value}</div>
                 <div className="text-sm text-neutral-400">{stat.label}</div>
               </div>
-            </div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
 
         {/* Background Illustrations with Content Overlay */}
         <div className="relative mt-16">
@@ -128,7 +201,13 @@ const HeroSection = () => {
           </div>
           
           {/* Content Overlay */}
-          <div className="relative z-10 bg-gradient-to-r from-orange-500/10 to-orange-800/10 backdrop-blur-sm rounded-2xl p-12 border border-orange-500/20">
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true, amount: 0.3 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="relative z-10 bg-gradient-to-r from-orange-500/10 to-orange-800/10 backdrop-blur-sm rounded-2xl p-12 border border-orange-500/20 shadow-xl shadow-orange-900/10"
+          >
             <h3 className="text-3xl font-bold text-center mb-6">
               Experience the Future of Content Delivery
             </h3>
@@ -138,23 +217,31 @@ const HeroSection = () => {
               secure, and lightning-fast.
             </p>
             <div className="flex justify-center mt-8">
-              <button 
+              <motion.button
                 onClick={() => document.querySelector('#features').scrollIntoView({ behavior: 'smooth' })}
-                className="bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800 py-3 px-8 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105"
+                className="bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800 py-3 px-8 rounded-xl font-semibold transition-all duration-300 transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                whileHover={{ scale: 1.07 }}
+                whileTap={{ scale: 0.97 }}
+                aria-label="Explore Features"
               >
                 Explore Features
-              </button>
+              </motion.button>
             </div>
-          </div>
+          </motion.div>
         </div>
 
         {/* Scroll Indicator */}
-        <div className="mt-16 flex flex-col items-center">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 1.2 }}
+          className="mt-16 flex flex-col items-center"
+        >
           <div className="text-neutral-500 text-sm mb-2">Scroll to explore</div>
           <div className="w-6 h-10 border-2 border-neutral-600 rounded-full flex justify-center">
             <div className="w-1 h-3 bg-orange-500 rounded-full mt-2 animate-bounce"></div>
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );
