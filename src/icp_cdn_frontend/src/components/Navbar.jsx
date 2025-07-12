@@ -59,11 +59,11 @@ const Navbar = () => {
   const isOnDashboard = location.pathname === '/dashboard';
 
   return (
-    <nav className="sticky top-0 z-50 py-3 backdrop-blur-lg border-b border-neutral-700/80">
-      <div className="container px-4 mx-auto relative lg:text-sm">
-        <div className="flex justify-between items-center">
+    <nav className="sticky top-0 z-50 py-1 backdrop-blur-lg border-b border-neutral-700/80">
+      <div className="container px-4 mx-auto relative lg:text-sm min-h-0">
+        <div className="flex justify-between items-center min-h-0">
           <div className="flex items-center flex-shrink-0">
-            <img className="h-10 w-10 mr-2" src={logo} alt="Logo" />
+            <img src={logo} alt="Logo" className="h-20 w-20 rounded-full animate-spin-custom" />
             <span className="text-xl tracking-tight">CanisterDrop</span>
           </div>
           
