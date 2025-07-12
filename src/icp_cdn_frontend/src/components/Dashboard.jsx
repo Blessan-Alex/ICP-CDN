@@ -65,6 +65,9 @@ export default function Dashboard() {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [loadingTimeout, setLoadingTimeout] = useState(false);
 
+  // Add state for delete all modal
+  const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
+
   // On mount, use loadIpfsFiles instead of loadAssetsWithInfo
   useEffect(() => {
     const initBackend = async () => {
@@ -151,7 +154,14 @@ export default function Dashboard() {
       const formData = new FormData();
       formData.append('file', file);
       const xhr = new XMLHttpRequest();
+      let timedOut = false;
       const uploadPromise = new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          timedOut = true;
+          xhr.abort();
+          setFileStatus(prev => ({ ...prev, [file.name]: '❌ Upload timed out' }));
+          reject(new Error('Upload timed out'));
+        }, 60000); // 60s timeout
         xhr.upload.onprogress = (event) => {
           if (event.lengthComputable) {
             const percent = Math.round((event.loaded / event.total) * 100);
@@ -159,6 +169,8 @@ export default function Dashboard() {
           }
         };
         xhr.onload = async () => {
+          clearTimeout(timeout);
+          if (timedOut) return;
           if (xhr.status === 200) {
             const data = JSON.parse(xhr.responseText);
             if (!data.success) {
@@ -194,6 +206,7 @@ export default function Dashboard() {
           }
         };
         xhr.onerror = () => {
+          clearTimeout(timeout);
           setFileStatus(prev => ({ ...prev, [file.name]: '❌ Upload failed' }));
           reject(new Error('Upload failed'));
         };
@@ -224,14 +237,13 @@ export default function Dashboard() {
     let active = 0;
     let completed = 0;
     let nextIndex = 0;
-    const results = [];
     return new Promise((resolve) => {
       const startNext = () => {
         if (nextIndex >= queue.length) {
           if (active === 0) {
             setUploading(false);
             setUploadStatus('✅ All uploads complete!');
-            loadIpfsFiles(backendRef.current);
+            loadIpfsFiles(backendRef.current); // always refresh
             setSelectedFiles([]);
             setPathMap({});
             resolve();
@@ -285,6 +297,30 @@ export default function Dashboard() {
   const cancelDelete = () => {
     setShowDeleteModal(false);
     setDeleteTarget(null);
+  };
+
+  // Handler for delete all
+  const handleDeleteAll = () => {
+    setShowDeleteAllModal(true);
+  };
+  const confirmDeleteAll = async () => {
+    setShowDeleteAllModal(false);
+    if (!isLoggedIn || files.length === 0) return;
+    setDeleting('all');
+    try {
+      const backend = backendRef.current;
+      if (!backend) throw new Error('No authenticated backend available');
+      for (const file of files) {
+        await backend.delete_ipfs_file(file.cid);
+      }
+      await loadIpfsFiles(backend);
+    } catch (e) {
+      alert('Delete all failed: ' + e.message);
+    }
+    setDeleting('');
+  };
+  const cancelDeleteAll = () => {
+    setShowDeleteAllModal(false);
   };
 
   const handleCopyLink = async (url, i) => {
@@ -451,14 +487,15 @@ export default function Dashboard() {
                         <div className="text-xs min-w-[80px] text-neutral-400">
                           {fileStatus[file.name] || 'Pending'}
                         </div>
-                        <button
-                          onClick={() => handleRemoveFile(file.name)}
-                          className="text-red-400 hover:text-red-300 px-2 py-1 rounded-lg border border-red-400 text-xs"
-                          title="Remove file"
-                          disabled={uploading}
-                        >
-                          Remove
-                        </button>
+                        {!uploading && (
+                          <button
+                            onClick={() => handleRemoveFile(file.name)}
+                            className="text-red-400 hover:text-red-300 px-2 py-1 rounded-lg border border-red-400 text-xs"
+                            title="Remove file"
+                          >
+                            Remove
+                          </button>
+                        )}
                       </div>
                     </li>
                   ))}
@@ -486,18 +523,6 @@ export default function Dashboard() {
           <AnimatePresence>
             {uploading && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-4">
-                <div className="flex justify-between text-sm text-neutral-400 mb-2">
-                  <span>Progress</span>
-                  <span>{uploadProgress}%</span>
-                </div>
-                <div className="w-full bg-neutral-800 rounded-full h-2">
-                  <motion.div
-                    className="bg-gradient-to-r from-orange-500 to-orange-700 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${uploadProgress}%` }}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${uploadProgress}%` }}
-                  ></motion.div>
-                </div>
                 <div className="flex justify-between text-xs text-neutral-500 mt-2">
                   <span>Uploading {selectedFiles.length} file(s)</span>
                 </div>
@@ -547,7 +572,22 @@ export default function Dashboard() {
                     <th className="py-3 px-4">CID</th>
                     <th className="py-3 px-4">Size</th>
                     <th className="py-3 px-4">Type</th>
-                    <th className="py-3 px-4">Actions</th>
+                    <th className="py-3 px-4">
+                      <div className="flex items-center justify-between w-full">
+                        <span>Actions</span>
+                        {files.length > 0 && (
+                          <button
+                            onClick={handleDeleteAll}
+                            className="p-2 rounded-full bg-red-700 hover:bg-red-800 border border-red-900 shadow text-white flex items-center justify-center transition-all ml-8"
+                            disabled={deleting === 'all'}
+                            title="Delete All Files"
+                            aria-label="Delete All Files"
+                          >
+                            <Trash2 className="w-5 h-5 text-white" />
+                          </button>
+                        )}
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -664,6 +704,19 @@ export default function Dashboard() {
             <div className="flex gap-4 w-full justify-center">
               <button onClick={confirmDelete} className="bg-gradient-to-r from-red-500 to-orange-700 hover:from-red-600 hover:to-orange-800 px-6 py-2 rounded-lg text-white font-semibold shadow-lg">Delete</button>
               <button onClick={cancelDelete} className="bg-white/20 dark:bg-neutral-800/40 border border-orange-500 px-6 py-2 rounded-lg text-orange-400 font-semibold hover:bg-orange-900/20">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showDeleteAllModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white/10 dark:bg-neutral-900/60 border border-white/20 dark:border-neutral-700 rounded-2xl shadow-2xl p-8 max-w-sm w-full flex flex-col items-center glassmorphism-modal">
+            <Trash2 className="w-12 h-12 text-red-400 mb-4" />
+            <h2 className="text-xl font-bold mb-2 text-orange-400">Delete All Files?</h2>
+            <p className="text-neutral-300 mb-6 text-center">Are you sure you want to delete <b>all</b> files? This action cannot be undone.</p>
+            <div className="flex gap-4 w-full justify-center">
+              <button onClick={confirmDeleteAll} className="bg-gradient-to-r from-red-500 to-orange-700 hover:from-red-600 hover:to-orange-800 px-6 py-2 rounded-lg text-white font-semibold shadow-lg">Delete All</button>
+              <button onClick={cancelDeleteAll} className="bg-white/20 dark:bg-neutral-800/40 border border-orange-500 px-6 py-2 rounded-lg text-orange-400 font-semibold hover:bg-orange-900/20">Cancel</button>
             </div>
           </div>
         </div>
