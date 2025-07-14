@@ -4,6 +4,14 @@ A decentralized Content Delivery Network (CDN) built on the Internet Computer Pr
 
 ---
 
+## 🎥 Demo Video
+
+[![Watch the demo](https://cdn.loom.com/sessions/thumbnails/33b3fb6b09954c6fa4a6527c32323342-with-play.jpg)](https://www.loom.com/share/33b3fb6b09954c6fa4a6527c32323342?sid=04a7f0f0-458a-496f-824d-99a77dfa60a8)
+
+▶️ [Watch the Loom Demo](https://www.loom.com/share/33b3fb6b09954c6fa4a6527c32323342?sid=04a7f0f0-458a-496f-824d-99a77dfa60a8)
+
+---
+
 ## 🏁 Beginner Installation & Deployment Guide
 
 ### 1. **Install Prerequisites**
