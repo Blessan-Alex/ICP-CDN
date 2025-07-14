@@ -4,7 +4,88 @@ A decentralized Content Delivery Network (CDN) built on the Internet Computer Pr
 
 ---
 
-## 🚀 Quick Start (For New Users)
+## 🏁 Beginner Installation & Deployment Guide
+
+### 1. **Install Prerequisites**
+- **Node.js** (v16+): [Download](https://nodejs.org/)
+- **npm** (comes with Node.js)
+- **Rust & Cargo**: [Install](https://www.rust-lang.org/tools/install)
+- **DFX (ICP SDK):**
+  ```bash
+  sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
+  # Or see: https://internetcomputer.org/docs/current/developer-docs/setup/install/
+  ```
+- **Git**
+- **Pinata Account** (for IPFS storage): [Sign up](https://pinata.cloud/)
+
+### 2. **Clone the Repository**
+```bash
+git clone <repository-url>
+cd icp_cdn
+```
+
+### 3. **Install npm Dependencies**
+```bash
+# Frontend
+cd src/icp_cdn_frontend && npm install
+cd ../../..
+# Backend
+cd pinata_backend && npm install
+cd ..
+# Rust dependencies
+cargo build
+```
+
+### 4. **Give Permission to Deployment Script**
+```bash
+chmod +x ./scripts/deployment/full_deploy.sh
+```
+
+### 5. **Set Up Pinata Credentials & .env Files**
+Run the deployment script (it will prompt for your Pinata JWT and Gateway):
+```bash
+./scripts/deployment/full_deploy.sh
+```
+
+### 6. **Start the Local ICP Network**
+```bash
+dfx start --background
+# If you encounter issues, try:
+dfx start --clean --background
+# Or, if you see replica errors:
+export DFX_REPLICA_MODE=replica && dfx start --background
+```
+
+### 7. **Deploy Canisters**
+```bash
+./scripts/deployment/full_deploy.sh
+# If you see errors about missing declarations, run:
+dfx generate
+# Then re-run the deploy script.
+```
+
+### 8. **Start Backend Server**
+```bash
+cd pinata_backend
+node server.js
+```
+
+### 9. **Start Frontend**
+```bash
+cd src/icp_cdn_frontend
+npm run dev
+```
+
+### 10. **Open the App**
+- Visit [http://localhost:5173](http://localhost:5173) in your browser.
+- Login with Internet Identity.
+- Upload and manage files!
+
+---
+
+## 🚀 Quick Start (For Experienced Users)
+
+See the [Beginner Installation & Deployment Guide](#-beginner-installation--deployment-guide) above for full details and troubleshooting.
 
 ### 1. **Clone the Repo**
 ```bash
