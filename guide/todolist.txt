@@ -1,0 +1,226 @@
+Of course. Here is the comprehensive, unified plan that begins with the initial MVP and seamlessly transitions into the advanced, production-grade features. Each step in the new phase includes detailed technical prompts designed to be easily understood and implemented by an AI coding assistant like Cursor.
+
+-----
+
+### **The Journey from a Simple Wrapper to a Strategic dCDN**
+
+This document outlines the complete roadmap for building a sophisticated, ecosystem-aware service on the Internet Computer (ICP). We begin with an ambitious but achievable hackathon plan to create a 100% on-chain dCDN, and then evolve it into a production-grade, feature-rich piece of core infrastructure.
+
+The initial project was a decentralized content delivery network (dCDN) that, upon review, was primarily a "wrapper" around Pinata. The critical feedback provided reshaped the project's entire direction, leading to this much stronger, more defensible, and uniquely valuable proposal.
+
+-----
+
+### **Phase 1: The Hackathon Winning MVP**
+
+This phase focuses on building the core, truly decentralized canister and demonstrating the "wow" factor features within a condensed timeframe.
+
+#### **1. The Strategic Pivot: The "Why"**
+
+Instead of competing with IPFS pinning services, the project's goal is to create a **storage optimization solution *for* other applications on ICP**.
+
+The core idea is to combine the strengths of two different technologies:
+
+  * **IPFS:** Used for cheap, long-term, "cold" storage.
+  * **ICP Canisters:** Used for fast, stateful, "hot" caching and advanced computation.
+
+The key differentiator is the native integration of **ICP's Cycles for payments**, creating a crypto-native business model and a strong competitive moat.
+
+-----
+
+#### **2. The MVP Architecture: A Truly On-Chain dCDN**
+
+We will eliminate any centralized Node.js orchestrator. The architecture is **100% on-chain**, relying on a single, highly intelligent Rust canister.
+
+  * **The All-in-One Smart Canister:** This canister is the entire backend, made possible by ICP's native **HTTP Outcalls** feature. It will handle the hot cache, real cycles billing, and direct interaction with IPFS gateways and Pinata's API.
+
+<!-- end list -->
+
+```mermaid
+flowchart LR
+    subgraph Internet
+        User[User's Browser / SDK]
+        IPFS[IPFS Gateways]
+        Pinata[Pinata API]
+    end
+
+    subgraph "Internet Computer (ICP)"
+        style Canister fill:#cde4ff,stroke:#6495ED,stroke-width:2px
+        Canister[
+            <b>dCDN Smart Canister (MVP)</b><br/>
+            - Hot Cache (LRU)<br/>
+            - Real Cycles Billing<br/>
+            - HTTP Outcalls Engine<br/>
+            - Basic Image Resizing
+        ]
+    end
+
+    User -- "fetch(cid) or upload(bytes)" --> Canister
+    Canister -- "CACHE MISS<br/>GET /ipfs/cid" --> IPFS
+    Canister -- "UPLOAD<br/>POST /pinning/pinFileToIPFS" --> Pinata
+    IPFS -- "File Bytes" --> Canister
+    Pinata -- "Pin Success" --> Canister
+    Canister -- "Serves File" --> User
+```
+
+-----
+
+#### **3. The MVP Action Plan & Checklist**
+
+This is the actionable checklist for building the initial version.
+
+  * [ ] **1. Setup Canister & Data Models:** Create the Rust project and define the `CacheEntry` and `UserAccount` structs.
+  * [ ] **2. Implement Cycles Billing:** Write the update call that accepts cycles from users to credit their accounts using `ic_cdk::api::call::msg_cycles_accept()`.
+  * [ ] **3. Build LRU Cache Logic:** Implement the data structures (`HashMap`, `VecDeque`) and functions to store, retrieve, and evict entries based on usage.
+  * [ ] **4. Configure HTTP Outcalls:** Set up the necessary types and boilerplate code in Rust to make external HTTPS requests using the `ic_cdk::api::http_request` function.
+  * [ ] **5. Implement On-Chain IPFS Fetch:** On a cache miss, trigger an HTTP Outcall to a public IPFS gateway, `await` the response, and store the bytes in the cache.
+  * [ ] **6. Add On-Chain Pinning:** Upon upload, trigger a second HTTP Outcall to the Pinata API to guarantee the file is pinned.
+  * [ ] **7. Create Image Resizing Function (MVP):** Integrate a Rust image library to create a function that can resize an image on-the-fly.
+  * [ ] **8. Design the Scaling Plan:** Create a diagram and a short explanation for a multi-canister architecture with a router and shards to show planning for future growth.
+
+-----
+
+### **Phase 2: From MVP to Production-Grade Infrastructure 🚀**
+
+With the MVP complete, the next phase evolves the project into a robust, secure, and intelligent service ready for real-world adoption. Each step below builds upon the last, adding layers of trust, sustainability, and advanced functionality.
+
+-----
+
+#### **Step 1: Implement Trustless, On-Chain Data Verification**
+
+**Goal:** Eliminate trust in third-party IPFS gateways by cryptographically verifying all fetched content. This is a critical security upgrade.
+
+**Technical Roadmap & Prompts for Cursor:**
+
+1.  **Add Hashing Dependencies:**
+
+    > Add the `cid`, `multihash`, and `sha2` crates to your `Cargo.toml`. These will be used to parse CIDs and perform the necessary hashing operations.
+
+    > ```toml
+    > [dependencies]
+    > # ... other dependencies
+    > cid = "0.10"
+    > multihash = { version = "0.18", features = ["sha2"] }
+    > sha2 = "0.10"
+    > ```
+
+2.  **Create a Verification Helper Function:**
+
+    > In your `src/lib.rs`, implement a private helper function `verify_content_hash(cid_str: &str, data: &[u8]) -> Result<(), String>`. This function will:
+
+    > 1.  Parse the `cid_str` into a `Cid` object.
+    > 2.  Extract the hash algorithm (e.g., `sha2-256`) and the expected hash digest from the CID.
+    > 3.  Hash the input `data` using the same algorithm.
+    > 4.  Compare the calculated hash with the expected hash digest.
+    > 5.  Return `Ok(())` if they match, or an `Err(String)` if they don't.
+
+3.  **Integrate Verification into the Fetch Logic:**
+
+    > Modify the function that handles the response from the IPFS HTTP Outcall. After successfully receiving the file bytes and before writing them to the cache, call your new `verify_content_hash` function. If it returns an error, discard the data and return an error to the user (e.g., "Gateway data verification failed").
+
+-----
+
+#### **Step 2: Evolve to a Sustainable On-Chain SaaS Model**
+
+**Goal:** Transition from a one-time upload fee to a recurring storage rent model. This creates a sustainable, self-funding canister business.
+
+**Technical Roadmap & Prompts for Cursor:**
+
+1.  **Update the UserAccount Struct:**
+
+    > Modify your `UserAccount` struct to include a `last_billed_timestamp: u64` field. This will track when the user was last charged for storage rent.
+
+2.  **Implement a Canister Heartbeat:**
+
+    > Use the `ic_cdk_timers::set_timer_interval` function to create a periodic canister heartbeat. Set this timer in the canister's `init` or `post_upgrade` hooks to run, for example, once every hour.
+
+    > ```rust
+    > use std::time::Duration;
+    > ```
+
+    > // In init or post\_upgrade
+    > let timer\_id = ic\_cdk\_timers::set\_timer\_interval(Duration::from\_secs(3600), charge\_storage\_rent);
+
+    > ```
+    > ```
+
+3.  **Implement the Billing Logic:**
+
+    > Create the public function `charge_storage_rent()` that the timer will call. This function should:
+
+    > 1.  Get the current time using `ic_cdk::api::time()`.
+    > 2.  Iterate through all `UserAccount`s in your state.
+    > 3.  For each user, calculate the time delta since `last_billed_timestamp`.
+    > 4.  Calculate the rent due: `(total_bytes_stored * cost_per_byte_per_hour * hours_passed)`.
+    > 5.  Deduct the calculated cycles from the user's balance.
+    > 6.  If a user has insufficient cycles, trigger an eviction process for all of their cached files and flag their account as delinquent.
+    > 7.  Update the user's `last_billed_timestamp` to the current time.
+
+-----
+
+#### **Step 3: Build a Proactive & Intelligent Cache**
+
+**Goal:** Make the cache "smarter" by anticipating user needs and pre-fetching content, reducing perceived latency.
+
+**Technical Roadmap & Prompts for Cursor:**
+
+1.  **Define Analytics Data Structures:**
+
+    > Add new thread-local `RefCell`s to your state to store analytics data. You'll need:
+
+    >   * A `CO_OCCURRENCE_GRAPH: HashMap<(String, String), u64>` to store the number of times two CIDs are requested in close succession.
+    >   * A `USER_SESSION_LOG: HashMap<Principal, Vec<(String, u64)>>` to temporarily track a user's recent requests.
+
+2.  **Log Access Patterns:**
+
+    > Modify your primary `get` or `http_request` endpoint. When a user requests a CID:
+
+    > 1.  Log the `(cid, timestamp)` to the `USER_SESSION_LOG` for the calling `Principal`.
+    > 2.  Iterate through the user's recent requests in the log. For each previous CID in the session, increment the counter for the `(previous_cid, current_cid)` pair in the `CO_OCCURRENCE_GRAPH`.
+
+3.  **Implement Pre-warming Logic:**
+
+    > In the same `get` endpoint, after logging the access, check the `CO_OCCURRENCE_GRAPH`.
+
+    > 1.  Find the CID that is most frequently requested immediately after the current CID.
+    > 2.  If a strongly correlated CID is found (i.e., the count exceeds a certain threshold), use `ic_cdk::spawn` to trigger a non-blocking, asynchronous call to your internal `fetch_and_cache` function for that correlated CID. This ensures the pre-fetch happens in the background without delaying the current user's response.
+
+-----
+
+#### **Step 4: Add Advanced On-Chain Compute & Transformations**
+
+**Goal:** Expand beyond simple resizing to offer a suite of valuable, on-the-fly media transformations, turning the dCDN into a powerful on-chain media toolkit.
+
+**Technical Roadmap & Prompts for Cursor:**
+
+1.  **Add the `image` Crate:**
+
+    > Add the `image` crate to `Cargo.toml` with the features you need for various formats.
+
+    > ```toml
+    > image = { version = "0.24", default-features = false, features = ["png", "jpeg", "webp"] }
+    > ```
+
+2.  **Create a Transformation Endpoint:**
+
+    > Implement a new query endpoint: `get_transformed(cid: String, transformations: Vec<Transformation>) -> HttpResponse`.
+    > Define the `Transformation` enum to represent possible actions:
+
+    > ```rust
+    > #[derive(CandidType, Deserialize)]
+    > pub enum Transformation {
+    >     Resize { width: u32, height: u32 },
+    >     Watermark { image_cid: String, position: (u32, u32) },
+    >     ConvertTo { format: ImageFormat },
+    > }
+    > ```
+
+    > Inside the function, fetch the original image bytes from the cache, load them using the `image` crate, apply each transformation in the list sequentially, and finally encode the result into the target format to be returned in an `HttpResponse`.
+
+3.  **Implement NFT Asset Guarding:**
+
+    > Create a specialized function: `serve_nft_asset(nft_canister_id: Principal, token_id: u64) -> HttpResponse`. This function will:
+
+    > 1.  First, make an inter-canister call to the `nft_canister_id`'s `owner_of(token_id)` method to get the owner's `Principal`.
+    > 2.  Check if the `caller()` of the function is the owner.
+    > 3.  If they are the owner, look up the associated high-resolution CID and serve the full-quality asset.
+    > 4.  If they are not the owner, serve a low-resolution or watermarked version by applying a predefined `Transformation`.
