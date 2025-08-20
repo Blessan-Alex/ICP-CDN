@@ -6,9 +6,47 @@ type IpfsFile = record {
     uploaded_at: nat64;
 };
 
+type CacheEntry = record {
+    cid: text;
+    content_type: text;
+    size: nat64;
+    last_accessed_ts: nat64;
+    bytes: vec nat8;
+};
+
 service : {
     "add_ipfs_file": (text, text, nat64, text) -> (variant { Ok : text; Err : text });
     "list_ipfs_files": () -> (vec IpfsFile) query;
     "delete_ipfs_file": (text) -> (variant { Ok : text; Err : text });
     "greet": (text) -> (text) query;
+    
+    "test_create_cache_entry": (text, text, nat64, vec nat8) -> (variant { Ok : text; Err : text });
+    "test_get_cache_entry": (text) -> (variant { Ok : CacheEntry; Err : text }) query;
+    "test_get_cache_stats": () -> (nat64, nat64) query;
+    
+    "test_get_lru_stats": () -> (nat64, vec text) query;
+    "test_lru_eviction_demo": () -> (variant { Ok : text; Err : text });
+    "test_lru_access_pattern": () -> (variant { Ok : text; Err : text });
+    "test_lru_touch_debug": (text) -> (variant { Ok : text; Err : text });
+    
+    // HTTP Outcall Test Functions
+    "test_http_outcall_setup": () -> (variant { Ok : text; Err : text });
+    "test_external_http_request": () -> (variant { Ok : text; Err : text });
+    "test_ipfs_fetch_and_cache_flow": (text) -> (variant { Ok : text; Err : text });
+    
+    // Main Content Serving Function
+    "get_content": (text) -> (variant { Ok : vec nat8; Err : text });
+    
+    // Upload and Pinning Functions
+    "upload_content": (text, text, vec nat8) -> (variant { Ok : text; Err : text });
+    "test_upload_and_pinning_flow": (text, text, vec nat8) -> (variant { Ok : text; Err : text });
+    "test_pinata_pinning": (text) -> (variant { Ok : text; Err : text });
+    
+    // Image Processing Functions
+    "get_content_with_resize": (text, opt nat32) -> (variant { Ok : vec nat8; Err : text });
+    "create_test_image": (text, nat32, nat32) -> (variant { Ok : text; Err : text });
+    "test_image_resizing": (text, nat32, nat32) -> (variant { Ok : text; Err : text });
+    
+    // HTTP Transform Function
+    "transform": (record { context : blob; response : record { status : nat; body : blob; headers : vec record { value : text; name : text }; }; }) -> (record { status : nat; body : blob; headers : vec record { value : text; name : text }; }) query;
 }

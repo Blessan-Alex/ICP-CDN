@@ -4,7 +4,8 @@
       "candid": "src/icp_cdn_backend/icp_cdn_backend.did",
       "package": "icp_cdn_backend",
       "type": "rust",
-      "http": ["src/icp_cdn_backend"]
+      "http": ["src/icp_cdn_backend"],
+      "http_outcall": true
     },
     "icp_cdn_frontend": {
       "dependencies": [
