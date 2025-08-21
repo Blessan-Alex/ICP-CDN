@@ -2,7 +2,7 @@ import { Menu, X, Sun, Moon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/logo.png";
-import { navItems, dashboardNavItem } from "../constants";
+import { navItems, dashboardNavItem, enhancedNavItems } from "../constants";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import { login, logout } from "../auth";
@@ -106,6 +106,27 @@ const Navbar = () => {
                 </button>
               ))}
             </div>
+            
+            {/* Enhanced Features Navigation - Only show when logged in */}
+            {isLoggedIn && (
+              <>
+                <div className="w-px h-6 bg-neutral-600"></div>
+                <div className="flex items-center space-x-6">
+                  {enhancedNavItems.map((item, index) => (
+                    <button
+                      key={index}
+                      onClick={() => handleNavClick(item.href, item.type)}
+                      className="transition-colors duration-200 cursor-pointer relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 hover:text-orange-500"
+                      aria-label={item.label}
+                      tabIndex={0}
+                    >
+                      {item.label}
+                      <span className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 group-hover:w-full h-0.5 bg-orange-500 transition-all duration-300" />
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
             <div className="w-px h-6 bg-neutral-600"></div>
             <button
               onClick={() => handleNavClick(dashboardNavItem.href, dashboardNavItem.type)}
@@ -192,6 +213,29 @@ const Navbar = () => {
                     <span className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 group-hover:w-full h-0.5 bg-orange-500 transition-all duration-300" />
                   </button>
                 ))}
+                
+                {/* Enhanced Features Navigation - Only show when logged in */}
+                {isLoggedIn && (
+                  <>
+                    <div className="border-t border-neutral-700 my-2"></div>
+                    <div className="px-3 py-1 text-xs font-semibold text-orange-400 uppercase tracking-wider">
+                      Enhanced Features
+                    </div>
+                    {enhancedNavItems.map((item, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleNavClick(item.href, item.type)}
+                        className="block px-3 py-2 text-base font-medium transition-colors duration-200 cursor-pointer relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 hover:text-orange-500"
+                        aria-label={item.label}
+                        tabIndex={0}
+                      >
+                        {item.label}
+                        <span className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 group-hover:w-full h-0.5 bg-orange-500 transition-all duration-300" />
+                      </button>
+                    ))}
+                  </>
+                )}
+                
                 <div className="border-t border-neutral-700 my-2"></div>
                 <button
                   onClick={() => handleNavClick(dashboardNavItem.href, dashboardNavItem.type)}

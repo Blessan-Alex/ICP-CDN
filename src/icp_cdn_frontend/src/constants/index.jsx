@@ -18,6 +18,15 @@ export const dashboardNavItem = {
   type: "page"
 };
 
+export const enhancedNavItems = [
+  { label: "Upload", href: "/upload", type: "page" },
+  { label: "Cache", href: "/cache", type: "page" },
+  { label: "Resize", href: "/resize", type: "page" },
+  { label: "Performance", href: "/performance", type: "page" },
+  { label: "Billing", href: "/billing", type: "page" },
+  { label: "Tests", href: "/tests", type: "page" },
+];
+
 export const features = [
   {
     icon: <Rocket />,

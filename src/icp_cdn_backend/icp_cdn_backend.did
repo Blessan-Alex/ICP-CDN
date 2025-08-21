@@ -14,15 +14,46 @@ type CacheEntry = record {
     bytes: vec nat8;
 };
 
+type UserAccount = record {
+    user_principal: principal;
+    cycles_balance: nat;
+};
+
+type CachePerformanceMetrics = record {
+    total_requests: nat64;
+    cache_hits: nat64;
+    cache_misses: nat64;
+    avg_response_time_ms: nat64;
+    total_cache_size_bytes: nat64;
+    cache_utilization_percent: nat64;
+};
+
 service : {
     "add_ipfs_file": (text, text, nat64, text) -> (variant { Ok : text; Err : text });
     "list_ipfs_files": () -> (vec IpfsFile) query;
     "delete_ipfs_file": (text) -> (variant { Ok : text; Err : text });
     "greet": (text) -> (text) query;
     
+    // HTTP Request Handler for Boundary Node Integration
+    "http_request_handler": (record { url : text; method : text; body : opt vec nat8; headers : vec record { value : text; name : text }; max_response_bytes : opt nat64; }) -> (record { status : nat; body : vec nat8; headers : vec record { value : text; name : text }; }) query;
+    
+    // Cycles Billing Functions
+    "deposit_cycles": () -> (record { user_principal : principal; cycles_balance : nat; });
+    "get_cycles_balance": () -> (nat) query;
+    "get_user_account": () -> (record { user_principal : principal; cycles_balance : nat; }) query;
+    "estimate_upload_cost": (nat64) -> (nat) query;
+    "estimate_storage_cost": (nat64, nat64) -> (nat) query;
+    
+    // Cache Management Functions
     "test_create_cache_entry": (text, text, nat64, vec nat8) -> (variant { Ok : text; Err : text });
-    "test_get_cache_entry": (text) -> (variant { Ok : CacheEntry; Err : text }) query;
+    "test_get_cache_entry": (text) -> (variant { Ok : record { cid : text; content_type : text; size : nat64; last_accessed_ts : nat64; bytes : vec nat8; }; Err : text }) query;
     "test_get_cache_stats": () -> (nat64, nat64) query;
+    "get_detailed_cache_stats": () -> (CachePerformanceMetrics) query;
+    "get_cache_entry_details": (text) -> (variant { Ok : record { cid : text; content_type : text; size : nat64; last_accessed_ts : nat64; bytes : vec nat8; }; Err : text }) query;
+    "manual_cache_eviction": (text) -> (variant { Ok : text; Err : text });
+    "clear_cache": () -> (nat64, nat64);
+    "clear_cache_with_result": () -> (variant { Ok : text; Err : text });
+    "reset_performance_metrics": () -> (variant { Ok : text; Err : text });
     
     "test_get_lru_stats": () -> (nat64, vec text) query;
     "test_lru_eviction_demo": () -> (variant { Ok : text; Err : text });
@@ -33,6 +64,8 @@ service : {
     "test_http_outcall_setup": () -> (variant { Ok : text; Err : text });
     "test_external_http_request": () -> (variant { Ok : text; Err : text });
     "test_ipfs_fetch_and_cache_flow": (text) -> (variant { Ok : text; Err : text });
+    "test_real_http_outcalls": () -> (variant { Ok : text; Err : text });
+    "test_complete_real_flow": () -> (variant { Ok : text; Err : text });
     
     // Main Content Serving Function
     "get_content": (text) -> (variant { Ok : vec nat8; Err : text });

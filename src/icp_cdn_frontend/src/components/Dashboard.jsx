@@ -9,6 +9,8 @@ import undrawShare from "../assets/undraw_share-link_jr6w.svg";
 import undrawStars from "../assets/undraw_to-the-stars_tz9v.svg";
 import undrawFolderFiles from "../assets/undraw_folder-files_5www.svg";
 import { Image, FileText as FileTextIcon, Video, File as FileIcon, Music, FileArchive, FileCode, FileSpreadsheet } from 'lucide-react';
+import EnhancedFileCard from './EnhancedFileCard';
+import SmartContentDelivery from './SmartContentDelivery';
 
 const PINATA_GATEWAY = "black-defensive-zebra-94.mypinata.cloud";
 const getAssetUrl = (cid) => {
@@ -67,6 +69,13 @@ export default function Dashboard() {
 
   // Add state for delete all modal
   const [showDeleteAllModal, setShowDeleteAllModal] = useState(false);
+  
+  // Add state for smart content delivery
+  const [selectedFileForDelivery, setSelectedFileForDelivery] = useState('');
+  
+  // Add state for cycles balance
+  const [cyclesBalance, setCyclesBalance] = useState(0);
+  const [userAccount, setUserAccount] = useState(null);
 
   // On mount, use loadIpfsFiles instead of loadAssetsWithInfo
   useEffect(() => {
@@ -82,6 +91,7 @@ export default function Dashboard() {
           const backend = createActor(canisterId, { agent });
           backendRef.current = backend;
           await loadIpfsFiles(backend);
+          await loadCyclesBalance(backend);
         } catch (error) {
           console.error('Failed to initialize backend:', error);
         }
@@ -98,6 +108,20 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Failed to load IPFS files:', error);
       setFiles([]);
+    }
+  };
+
+  // Load cycles balance and user account
+  const loadCyclesBalance = async (backend) => {
+    try {
+      const balance = await backend.get_cycles_balance();
+      setCyclesBalance(Number(balance));
+      
+      const account = await backend.get_user_account();
+      setUserAccount(account);
+    } catch (error) {
+      console.error('Failed to load cycles balance:', error);
+      setCyclesBalance(0);
     }
   };
 
@@ -348,6 +372,16 @@ export default function Dashboard() {
     }
   };
 
+  const handleResizeImage = async (cid, contentType) => {
+    if (!isLoggedIn) {
+      alert('Please log in to resize images');
+      return;
+    }
+    
+    // Navigate to resize page with the image CID
+    window.location.href = `/resize?cid=${cid}`;
+  };
+
   // Loading skeleton for files
   const filesLoading = isLoggedIn && files.length === 0 && !uploading;
 
@@ -404,6 +438,29 @@ export default function Dashboard() {
               <p className="text-sm text-neutral-500 mt-2">
                 Logged in as: <span className="font-mono text-orange-400">{principal.toString()}</span>
               </p>
+            )}
+            {cyclesBalance > 0 && (
+              <div className="mt-4 p-3 bg-neutral-800/50 rounded-lg border border-neutral-700">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-orange-500" />
+                    <span className="text-sm text-neutral-300">Cycles Balance:</span>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-semibold text-orange-400">
+                      {cyclesBalance.toLocaleString()} cycles
+                    </div>
+                    <div className="text-xs text-neutral-400">
+                      ≈ {(cyclesBalance / 1_000_000_000_000).toFixed(6)} ICP
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-2 text-xs text-neutral-400">
+                  <a href="/billing" className="text-orange-400 hover:text-orange-300 underline">
+                    Manage cycles →
+                  </a>
+                </div>
+              </div>
             )}
           </motion.div>
         </motion.section>
@@ -615,6 +672,20 @@ export default function Dashboard() {
                           >
                             <Eye className="w-4 h-4" />
                           </motion.button>
+                          
+                          {/* Image Resize Button - Only for images */}
+                          {file.content_type.startsWith('image/') && (
+                            <motion.button
+                              onClick={() => handleResizeImage(file.cid, file.content_type)}
+                              className="text-blue-400 hover:text-blue-300 bg-transparent border-none cursor-pointer p-2 hover:bg-blue-500/10 rounded-lg transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                              title="Resize image"
+                              whileHover={{ scale: 1.15 }}
+                              whileTap={{ scale: 0.95 }}
+                            >
+                              <Image className="w-4 h-4" />
+                            </motion.button>
+                          )}
+                          
                           <motion.button
                             className="text-neutral-400 hover:text-neutral-300 border px-2 py-1 rounded-lg hover:bg-neutral-800 transition-all duration-200 flex items-center gap-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
                             onClick={() => handleCopyLink(url, i)}
@@ -646,6 +717,87 @@ export default function Dashboard() {
             </div>
           )}
         </motion.section>
+
+        {/* Enhanced File Display */}
+        <motion.section 
+          initial={{ opacity: 0, y: 40 }} 
+          animate={{ opacity: 1, y: 0 }} 
+          transition={{ delay: 0.2 }} 
+          className="bg-white/10 dark:bg-neutral-900/40 backdrop-blur-xl rounded-2xl p-8 border border-white/30 dark:border-neutral-700 mb-10 shadow-xl"
+        >
+          <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
+            <Zap className="w-6 h-6 text-orange-500" />
+            Enhanced File Management
+          </h2>
+          
+          {files.length === 0 ? (
+            <div className="text-center py-12 text-neutral-400">
+              <FileIcon className="w-16 h-16 mx-auto mb-4 opacity-50" />
+              <p className="text-lg mb-2">No files uploaded yet</p>
+              <p className="text-sm">Upload some files to see enhanced file management features</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {files.slice(0, 4).map((file, index) => (
+                <motion.div
+                  key={index}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 * index }}
+                >
+                  <EnhancedFileCard 
+                    file={file} 
+                    onAction={(action, file) => {
+                      if (action === 'resize') {
+                        handleResizeImage(file.cid, file.content_type);
+                      }
+                    }}
+                  />
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </motion.section>
+
+        {/* Smart Content Delivery Demo */}
+        {files.length > 0 && (
+          <motion.section 
+            initial={{ opacity: 0, y: 40 }} 
+            animate={{ opacity: 1, y: 0 }} 
+            transition={{ delay: 0.25 }} 
+            className="bg-white/10 dark:bg-neutral-900/40 backdrop-blur-xl rounded-2xl p-8 border border-white/30 dark:border-neutral-700 mb-10 shadow-xl"
+          >
+            <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
+              <Cloud className="w-6 h-6 text-orange-500" />
+              Smart Content Delivery Demo
+            </h2>
+            
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-neutral-300 mb-2">
+                Select a file to test smart content delivery:
+              </label>
+              <select 
+                onChange={(e) => setSelectedFileForDelivery(e.target.value)}
+                className="w-full p-3 bg-neutral-800 border border-neutral-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-orange-500"
+                defaultValue=""
+              >
+                <option value="">Choose a file...</option>
+                {files.map((file, index) => (
+                  <option key={index} value={file.cid}>
+                    {file.name || file.cid.substring(0, 20)}... ({file.content_type})
+                  </option>
+                ))}
+              </select>
+            </div>
+            
+            {selectedFileForDelivery && (
+              <SmartContentDelivery 
+                cid={selectedFileForDelivery} 
+                showPreview={true}
+              />
+            )}
+          </motion.section>
+        )}
 
         {/* Quick Start / Docs */}
         <motion.section id="docs" initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }} className="bg-white/10 dark:bg-neutral-900/40 backdrop-blur-xl rounded-2xl p-8 border border-white/30 dark:border-neutral-700 mb-10 shadow-xl">

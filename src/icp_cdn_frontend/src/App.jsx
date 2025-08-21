@@ -5,6 +5,12 @@ import AboutUs from "./components/AboutUs";
 import Mission from "./components/Mission";
 import Footer from "./components/Footer";
 import Dashboard from "./components/Dashboard";
+import EnhancedUpload from "./components/EnhancedUpload";
+import ImageResizer from "./components/ImageResizer";
+import CacheDashboard from "./components/CacheDashboard";
+import PerformanceMonitor from "./components/PerformanceMonitor";
+import CyclesBilling from "./components/CyclesBilling";
+import TestInterface from "./components/TestInterface";
 import { AuthProvider } from "./AuthContext";
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 
@@ -37,6 +43,12 @@ function App() {
             }
           />
           <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/upload" element={<EnhancedUpload />} />
+          <Route path="/cache" element={<CacheDashboard />} />
+          <Route path="/resize" element={<ImageResizer />} />
+          <Route path="/performance" element={<PerformanceMonitor />} />
+          <Route path="/billing" element={<CyclesBilling />} />
+          <Route path="/tests" element={<TestInterface />} />
         </Routes>
       </Router>
     </AuthProvider>
