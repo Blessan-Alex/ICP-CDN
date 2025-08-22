@@ -9,6 +9,7 @@ import EnhancedUpload from "./components/EnhancedUpload";
 import ImageResizer from "./components/ImageResizer";
 import CacheDashboard from "./components/CacheDashboard";
 import PerformanceMonitor from "./components/PerformanceMonitor";
+import Tiers from "./components/Tiers";
 import CyclesBilling from "./components/CyclesBilling";
 import TestInterface from "./components/TestInterface";
 import { AuthProvider } from "./AuthContext";
@@ -47,6 +48,7 @@ function App() {
           <Route path="/cache" element={<CacheDashboard />} />
           <Route path="/resize" element={<ImageResizer />} />
           <Route path="/performance" element={<PerformanceMonitor />} />
+          <Route path="/tiers" element={<Tiers />} />
           <Route path="/billing" element={<CyclesBilling />} />
           <Route path="/tests" element={<TestInterface />} />
         </Routes>

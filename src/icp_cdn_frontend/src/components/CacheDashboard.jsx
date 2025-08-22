@@ -217,11 +217,13 @@ export default function CacheDashboard() {
 
   // Format bytes to human readable
   const formatBytes = (bytes) => {
-    if (bytes === 0) return '0 Bytes';
+    // Convert BigInt to Number if needed
+    const bytesNum = typeof bytes === 'bigint' ? Number(bytes) : bytes;
+    if (bytesNum === 0) return '0 Bytes';
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    const i = Math.floor(Math.log(bytesNum) / Math.log(k));
+    return parseFloat((bytesNum / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   // Get cache health status
@@ -426,11 +428,11 @@ export default function CacheDashboard() {
               <div className="w-full bg-neutral-700 rounded-full h-2 mb-1">
                 <div
                   className="bg-gradient-to-r from-orange-500 to-orange-700 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.min((cacheStats?.totalBytes || 0) / (100 * 1024 * 1024) * 100, 100)}%` }}
+                  style={{ width: `${Math.min((cacheStats?.totalBytes || 0) / (20 * 1024 * 1024) * 100, 100)}%` }}
                 ></div>
               </div>
               <div className="text-xs text-neutral-500">
-                {Math.round((cacheStats?.totalBytes || 0) / (100 * 1024 * 1024) * 100)}% of 100MB limit
+                {Math.round((cacheStats?.totalBytes || 0) / (20 * 1024 * 1024) * 100)}% of 20MB limit
               </div>
             </div>
           </motion.div>

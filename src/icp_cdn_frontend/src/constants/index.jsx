@@ -23,6 +23,7 @@ export const enhancedNavItems = [
   { label: "Cache", href: "/cache", type: "page" },
   { label: "Resize", href: "/resize", type: "page" },
   { label: "Performance", href: "/performance", type: "page" },
+  { label: "Tiers", href: "/tiers", type: "page" },
   { label: "Billing", href: "/billing", type: "page" },
   { label: "Tests", href: "/tests", type: "page" },
 ];

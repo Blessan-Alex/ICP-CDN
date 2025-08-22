@@ -14,9 +14,38 @@ type CacheEntry = record {
     bytes: vec nat8;
 };
 
+type UserTier = variant {
+    Free;
+    Starter;
+    Pro;
+    Business;
+};
+
 type UserAccount = record {
     user_principal: principal;
     cycles_balance: nat;
+    tier: UserTier;
+    cache_usage_bytes: nat64;
+    pinata_enabled: bool;
+};
+
+type UserTierInfo = record {
+    current_tier: UserTier;
+    cache_limit_bytes: nat64;
+    cache_usage_bytes: nat64;
+    pinata_enabled: bool;
+    pinata_storage_limit_bytes: nat64;
+    available_upgrades: vec UserTier;
+};
+
+type TierInfo = record {
+    tier: UserTier;
+    name: text;
+    cache_limit_mb: nat32;
+    pinata_storage_gb: nat32;
+    pinata_enabled: bool;
+    price_cycles: nat;
+    features: vec text;
 };
 
 type CachePerformanceMetrics = record {
@@ -38,11 +67,16 @@ service : {
     "http_request_handler": (record { url : text; method : text; body : opt vec nat8; headers : vec record { value : text; name : text }; max_response_bytes : opt nat64; }) -> (record { status : nat; body : vec nat8; headers : vec record { value : text; name : text }; }) query;
     
     // Cycles Billing Functions
-    "deposit_cycles": () -> (record { user_principal : principal; cycles_balance : nat; });
+    "deposit_cycles": () -> (record { user_principal : principal; cycles_balance : nat; tier : UserTier; cache_usage_bytes : nat64; pinata_enabled : bool; });
     "get_cycles_balance": () -> (nat) query;
-    "get_user_account": () -> (record { user_principal : principal; cycles_balance : nat; }) query;
+    "get_user_account": () -> (record { user_principal : principal; cycles_balance : nat; tier : UserTier; cache_usage_bytes : nat64; pinata_enabled : bool; }) query;
     "estimate_upload_cost": (nat64) -> (nat) query;
     "estimate_storage_cost": (nat64, nat64) -> (nat) query;
+    
+    // Tier Management Functions
+    "upgrade_tier": (UserTier) -> (variant { Ok : text; Err : text });
+    "get_user_tier_info": () -> (variant { Ok : UserTierInfo; Err : text }) query;
+    "get_available_tiers": () -> (vec TierInfo) query;
     
     // Cache Management Functions
     "test_create_cache_entry": (text, text, nat64, vec nat8) -> (variant { Ok : text; Err : text });
