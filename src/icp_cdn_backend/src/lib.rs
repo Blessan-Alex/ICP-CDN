@@ -646,30 +646,34 @@ async fn upload_content(cid: String, content_type: String, content: Vec<u8>) -> 
         return Err(format!("Failed to cache uploaded content: {}", e));
     }
     
-    // Pin to Pinata only if user has Pinata enabled (non-free tier)
-    if user_account.pinata_enabled {
-        let cid_for_pinning = cid.clone();
-        ic_cdk::spawn(async move {
-            match pin_to_pinata(&cid_for_pinning).await {
-                Ok(_) => {
-                    ic_cdk::print(format!("Successfully pinned CID {} to Pinata", cid_for_pinning));
-                }
-                Err(e) => {
-                    ic_cdk::print(format!("Failed to pin CID {} to Pinata: {}", cid_for_pinning, e));
-                }
+    // Upload to Pinata with tier-based behavior
+    let upload_result = if user_account.tier == UserTier::Free {
+        // Free tier: Upload to Pinata without pinning (direct upload only)
+        match upload_to_pinata(&content, &format!("file_{}", cid), &content_type, false).await {
+            Ok(ipfs_hash) => {
+                ic_cdk::print(format!("Free tier: Uploaded file to Pinata (no pinning) with IPFS hash: {}", ipfs_hash));
+                format!("Content uploaded to cache and Pinata. CID: {} | IPFS Hash: {} (Free tier - direct upload only, not pinned)", cid, ipfs_hash)
             }
-        });
-        
-        Ok(format!(
-            "Content uploaded and cached successfully. Pinning to Pinata initiated in background. CID: {} (Tier: {:?})",
-            cid, user_account.tier
-        ))
+            Err(e) => {
+                ic_cdk::print(format!("Free tier: Failed to upload to Pinata: {}", e));
+                format!("Content uploaded to cache only. CID: {} (Pinata upload failed: {})", cid, e)
+            }
+        }
     } else {
-        Ok(format!(
-            "Content uploaded and cached successfully. CID: {} (Free tier - no IPFS pinning)",
-            cid
-        ))
-    }
+        // Paid tiers: Upload to Pinata with pinning for persistence
+        match upload_to_pinata(&content, &format!("file_{}", cid), &content_type, true).await {
+            Ok(ipfs_hash) => {
+                ic_cdk::print(format!("Paid tier: Uploaded and pinned file to Pinata with IPFS hash: {}", ipfs_hash));
+                format!("Content uploaded to cache and pinned to Pinata. CID: {} | IPFS Hash: {} (Tier: {:?} - persistent pinning enabled)", cid, ipfs_hash, user_account.tier)
+            }
+            Err(e) => {
+                ic_cdk::print(format!("Paid tier: Failed to upload/pin to Pinata: {}", e));
+                format!("Content uploaded to cache only. CID: {} (Pinata upload/pinning failed: {})", cid, e)
+            }
+        }
+    };
+    
+    Ok(upload_result)
 }
 
 // New structs for tier information
@@ -858,29 +862,50 @@ async fn fetch_from_ipfs_internal(cid: &str) -> Result<Vec<u8>, String> {
     }
 }
 
-// Private async function to pin content to Pinata using real HTTP outcalls
-async fn pin_to_pinata(cid: &str) -> Result<(), String> {
-    // Construct the URL for the Pinata API
-    let url = "https://api.pinata.cloud/pinning/pinByHash".to_string();
+// Upload file content to Pinata using pinFileToIPFS API
+async fn upload_to_pinata(content: &[u8], filename: &str, content_type: &str, pin_content: bool) -> Result<String, String> {
+    let url = if pin_content {
+        "https://api.pinata.cloud/pinning/pinFileToIPFS"
+    } else {
+        "https://api.pinata.cloud/pinning/pinFileToIPFS"  // Same endpoint, but without pinning metadata
+    };
     
-    ic_cdk::print(format!("Making HTTP outcall to Pinata API to pin CID: {}", cid));
+    ic_cdk::print(format!("Making HTTP outcall to Pinata API to upload file: {}", filename));
     
-    // Create the JSON body required by the Pinata API
-    let json_body = format!("{{\"hashToPin\": \"{}\"}}", cid);
-    let body_bytes = json_body.into_bytes();
+    // Create multipart form data body
+    let boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
+    let mut body = Vec::new();
+    
+    // Add file field
+    body.extend_from_slice(format!("--{}\r\n", boundary).as_bytes());
+    body.extend_from_slice(format!("Content-Disposition: form-data; name=\"file\"; filename=\"{}\"\r\n", filename).as_bytes());
+    body.extend_from_slice(format!("Content-Type: {}\r\n\r\n", content_type).as_bytes());
+    body.extend_from_slice(content);
+    body.extend_from_slice(b"\r\n");
+    
+    // Add metadata field (for pinning configuration)
+    if pin_content {
+        body.extend_from_slice(format!("--{}\r\n", boundary).as_bytes());
+        body.extend_from_slice(b"Content-Disposition: form-data; name=\"pinataMetadata\"\r\n\r\n");
+        let metadata = format!("{{\"name\":\"{}\",\"keyvalues\":{{\"pinned\":\"true\",\"contentType\":\"{}\"}}}}", filename, content_type);
+        body.extend_from_slice(metadata.as_bytes());
+        body.extend_from_slice(b"\r\n");
+    }
+    
+    body.extend_from_slice(format!("--{}--\r\n", boundary).as_bytes());
     
     // Create headers for the POST request
     let headers = vec![
         HttpHeader { name: "Authorization".to_string(), value: format!("Bearer {}", PINATA_JWT) },
-        HttpHeader { name: "Content-Type".to_string(), value: "application/json".to_string() },
+        HttpHeader { name: "Content-Type".to_string(), value: format!("multipart/form-data; boundary={}", boundary) },
     ];
     
     // Create the HTTP request
     let request = CanisterHttpRequestArgument {
-        url,
+        url: url.to_string(),
         method: HttpMethod::POST,
         headers,
-        body: Some(body_bytes),
+        body: Some(body),
         max_response_bytes: Some(1024 * 1024), // 1MB max response
         transform: Some(TransformContext {
             function: TransformFunc(candid::Func {
@@ -892,9 +917,9 @@ async fn pin_to_pinata(cid: &str) -> Result<(), String> {
     };
     
     // Make the HTTP outcall
-    let cycles = 15_000_000_000u128; // 15B cycles for the request (increased from 10B)
+    let cycles = 20_000_000_000u128; // 20B cycles for file upload (more than pinning)
     
-    ic_cdk::print(format!("Sending Pinata HTTP outcall with {} cycles", cycles));
+    ic_cdk::print(format!("Sending Pinata file upload HTTP outcall with {} cycles", cycles));
     
     match ic_cdk::api::call::call_with_payment128::<(CanisterHttpRequestArgument,), (HttpResponse,)>(
         Principal::management_canister(),
@@ -905,10 +930,24 @@ async fn pin_to_pinata(cid: &str) -> Result<(), String> {
         Ok((response,)) => {
             ic_cdk::print(format!("Pinata HTTP outcall successful, status: {}", response.status));
             
-            // Check if the pinning was successful
+            // Check if the upload was successful
             if response.status == Nat::from(200u64) {
-                ic_cdk::print(format!("Successfully pinned CID {} to Pinata", cid));
-                Ok(())
+                // Parse the response to extract IPFS hash
+                let response_body = String::from_utf8_lossy(&response.body);
+                ic_cdk::print(format!("Pinata upload response: {}", response_body));
+                
+                // Try to extract IPFS hash from response JSON
+                // Response format: {"IpfsHash":"QmXXX...","PinSize":1234,"Timestamp":"2023-..."}
+                if let Some(start) = response_body.find("\"IpfsHash\":\"") {
+                    let start_idx = start + 12; // Length of "IpfsHash":""
+                    if let Some(end) = response_body[start_idx..].find("\"") {
+                        let ipfs_hash = &response_body[start_idx..start_idx + end];
+                        ic_cdk::print(format!("Successfully uploaded file to Pinata with IPFS hash: {}", ipfs_hash));
+                        return Ok(ipfs_hash.to_string());
+                    }
+                }
+                
+                Err("Failed to parse IPFS hash from Pinata response".to_string())
             } else {
                 let error_msg = String::from_utf8_lossy(&response.body);
                 ic_cdk::print(format!("Pinata API failed with status: {}, body: {}", response.status, error_msg));
@@ -1188,22 +1227,26 @@ async fn test_real_http_outcalls() -> Result<String, String> {
             let content_size = content.len();
             ic_cdk::print(format!("✅ Successfully fetched {} bytes from IPFS", content_size));
             
-            // Test 2: Try to pin the same CID to Pinata
+            // Test 2: Try to upload test content to Pinata
             ic_cdk::print("Testing real HTTP outcall to Pinata API...");
             
-            match pin_to_pinata(test_cid).await {
-                Ok(_) => {
+            // Create test content for upload
+            let test_content = b"Test content for Pinata upload verification";
+            let test_filename = format!("test_upload_{}.txt", ic_cdk::api::time());
+            
+            match upload_to_pinata(test_content, &test_filename, "text/plain", false).await {
+                Ok(ipfs_hash) => {
                     Ok(format!(
                         "✅ HTTP outcalls working perfectly!\n\
                         - Fetched {} bytes from IPFS\n\
-                        - Successfully pinned to Pinata\n\
+                        - Successfully uploaded to Pinata with IPFS hash: {}\n\
                         - All HTTP outcalls are functional",
-                        content_size
+                        content_size, ipfs_hash
                     ))
                 }
                 Err(pin_error) => {
                     Ok(format!(
-                        "⚠️ IPFS fetch successful, but Pinata pinning failed\n\
+                        "⚠️ IPFS fetch successful, but Pinata upload failed\n\
                         - Fetched {} bytes from IPFS ✅\n\
                         - Pinata error: {}\n\
                         - HTTP outcalls are partially working",

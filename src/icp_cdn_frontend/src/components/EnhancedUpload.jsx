@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, FileText, Cloud, Zap, Shield, CheckCircle, AlertCircle, Loader } from 'lucide-react';
+import { Upload, FileText, Cloud, Zap, Shield, CheckCircle, AlertCircle, Loader, Crown, Info } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { createActor, canisterId } from '../canister_id_patch';
 import { HttpAgent } from '@dfinity/agent';
@@ -13,6 +13,8 @@ export default function EnhancedUpload() {
   const [uploadProgress, setUploadProgress] = useState({});
   const [uploadStatus, setUploadStatus] = useState({});
   const [backend, setBackend] = useState(null);
+  const [userTierInfo, setUserTierInfo] = useState(null);
+  const [loadingTierInfo, setLoadingTierInfo] = useState(false);
   const fileInputRef = useRef(null);
 
   // Initialize backend connection
@@ -36,6 +38,9 @@ export default function EnhancedUpload() {
           
           setBackend(backendInstance);
           console.log('Backend initialized successfully');
+          
+          // Load user tier information
+          await loadTierInfo(backendInstance);
         } catch (error) {
           console.error('Failed to initialize backend:', error);
           setUploadStatus(prev => ({ ...prev, 'backend': `❌ Backend init failed: ${error.message}` }));
@@ -44,6 +49,47 @@ export default function EnhancedUpload() {
     };
     initBackend();
   }, [isLoggedIn, principal]);
+
+  // Load user tier information
+  const loadTierInfo = async (backendInstance = backend) => {
+    if (!backendInstance) return;
+    
+    setLoadingTierInfo(true);
+    try {
+      console.log('Loading user tier information...');
+      const tierInfo = await backendInstance.get_user_tier_info();
+      
+      if (tierInfo.Ok) {
+        setUserTierInfo(tierInfo.Ok);
+        console.log('User tier info loaded:', tierInfo.Ok);
+      } else {
+        console.error('Failed to load tier info:', tierInfo.Err);
+      }
+    } catch (error) {
+      console.error('Error loading tier info:', error);
+    } finally {
+      setLoadingTierInfo(false);
+    }
+  };
+
+  // Helper function to get tier name from enum object
+  const getUserTierName = (tier) => {
+    if (typeof tier === 'object' && tier !== null) {
+      return Object.keys(tier)[0];
+    }
+    return tier;
+  };
+
+  // Format bytes to human readable
+  const formatBytes = (bytes) => {
+    // Convert BigInt to Number if needed
+    const bytesNum = typeof bytes === 'bigint' ? Number(bytes) : bytes;
+    if (bytesNum === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytesNum) / Math.log(k));
+    return parseFloat((bytesNum / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
 
   // Generate CID for file (simplified version)
   const generateCID = async (file) => {
@@ -205,12 +251,71 @@ export default function EnhancedUpload() {
           <span className="font-semibold text-orange-400">dCDN Features:</span>
         </div>
         <ul className="text-sm text-neutral-300 space-y-1">
-          <li>• Automatic IPFS pinning for redundancy</li>
+          <li>• Automatic IPFS upload to Pinata</li>
           <li>• Smart caching with LRU eviction</li>
           <li>• On-chain content verification</li>
           <li>• Global content delivery</li>
         </ul>
       </div>
+
+      {/* Tier-specific Upload Warning */}
+      {userTierInfo && (
+        <div className={`mb-6 p-4 rounded-lg border ${
+          getUserTierName(userTierInfo.current_tier) === 'Free' 
+            ? 'bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-amber-500/20'
+            : 'bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/20'
+        }`}>
+          <div className="flex items-center gap-2 mb-2">
+            {getUserTierName(userTierInfo.current_tier) === 'Free' ? (
+              <AlertCircle className="w-5 h-5 text-amber-400" />
+            ) : (
+              <Crown className="w-5 h-5 text-green-400" />
+            )}
+            <span className={`font-semibold ${
+              getUserTierName(userTierInfo.current_tier) === 'Free' ? 'text-amber-400' : 'text-green-400'
+            }`}>
+              {getUserTierName(userTierInfo.current_tier)} Tier Upload Behavior:
+            </span>
+          </div>
+          
+          {getUserTierName(userTierInfo.current_tier) === 'Free' ? (
+            <div className="text-sm text-neutral-300 space-y-2">
+              <p>⚠️ <strong>Free Tier Limitations:</strong></p>
+              <ul className="ml-4 space-y-1">
+                <li>• Files uploaded directly to IPFS (no pinning)</li>
+                <li>• Content may become unavailable when cache evicts</li>
+                <li>• No persistent storage guarantee</li>
+                <li>• Limited to 20MB cache</li>
+              </ul>
+              <div className="mt-3 p-2 bg-amber-500/10 rounded border border-amber-500/20">
+                <p className="text-amber-300 text-xs">
+                  💡 <strong>Upgrade for better reliability:</strong> Paid tiers include persistent IPFS pinning, 
+                  ensuring your content stays available even after cache eviction.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-neutral-300 space-y-1">
+              <p>✅ <strong>Premium Features Active:</strong></p>
+              <ul className="ml-4 space-y-1">
+                <li>• Files uploaded and pinned to IPFS persistently</li>
+                <li>• Content remains available even after cache eviction</li>
+                <li>• Enhanced storage limits ({formatBytes(userTierInfo.cache_limit_bytes)})</li>
+                <li>• Priority support and features</li>
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {loadingTierInfo && (
+        <div className="mb-6 p-4 bg-neutral-800/30 rounded-lg border border-neutral-600">
+          <div className="flex items-center gap-2">
+            <Loader className="w-4 h-4 animate-spin text-orange-400" />
+            <span className="text-sm text-neutral-400">Loading tier information...</span>
+          </div>
+        </div>
+      )}
 
       {/* Upload Area */}
       <div
