@@ -25,7 +25,7 @@ export default function EnhancedFileCard({ file, onAction }) {
         try {
           console.log('Initializing backend for enhanced file card...');
           await initAuth();
-          const identity = getIdentity();
+          const identity = await getIdentity();
           const agent = new HttpAgent({
             host: import.meta.env.VITE_DFX_REPLICA_HOST || "http://127.0.0.1:4943",
             identity

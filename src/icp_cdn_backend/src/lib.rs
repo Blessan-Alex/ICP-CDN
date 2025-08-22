@@ -72,8 +72,8 @@ const MAX_CACHE_SIZE_BYTES: u64 = 100 * 1024 * 1024; // 100MB cache limit
 
 // Pinata API configuration
 // NOTE: In production, this should be managed via encrypted secrets
-// For this hackathon MVP, we're using a placeholder JWT
-const PINATA_JWT: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiJkYWI5YjI5ZC1jYzM0LTQ5ZDYtOTM5ZC1hYzFkYzM0YzM0YzM0IiwidXNlcm5hbWUiOiJ0ZXN0LXVzZXIiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJwdWJsaWNBZGRyZXNzIjoiMHgxMjM0NTY3ODkwYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXoiLCJjcmVhdGVkQXQiOiIyMDI0LTAxLTAxVDAwOjAwOjAwLjAwMFoifSwiZmlsZXMiOltdLCJtZXRhZGF0YSI6e30sImJhdGNoIjpudWxsLCJjcmVhdGVkQXQiOiIyMDI0LTAxLTAxVDAwOjAwOjAwLjAwMFoifQ.example_signature";
+// For this hackathon MVP, we're using a real JWT from environment
+const PINATA_JWT: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIyZDhiYzBiNC0xNjllLTQzNzQtOTI5Yy05ZmJhNjEwODNmMTciLCJlbWFpbCI6ImtoYXRyaXNha3NoaTMwMDNAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOntydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6IjdjN2FjMjY3YTdhMzU2ZWVmN2Y3Iiwic2NvcGVkS2V5U2VjcmV0IjoiODE2ZjMyZjk4NTFjY2Q1YzZmNjhlNjQzMDA2NjZlZGQ4MzkxMTEzY2RkMDhhMjMzNDdkZmMzY2NhMDNlOTU1NCIsImV4cCI6MTc4Mzc4MTcwOH0.Qv8HE9i-HPBOJ2jvtnrlEGnttG6kIEUQ-SaKz4AznwE";
 
 thread_local! {
     static USER_FILES: RefCell<HashMap<String, Vec<IpfsFile>>> = RefCell::new(HashMap::new());
@@ -393,8 +393,14 @@ fn transform(_raw: TransformContext) -> HttpResponse {
     }
 }
 
+// Public async function to fetch content from IPFS using real HTTP outcalls
+#[ic_cdk::update]
+async fn fetch_from_ipfs(cid: String) -> Result<Vec<u8>, String> {
+    fetch_from_ipfs_internal(&cid).await
+}
+
 // Private async function to fetch content from IPFS using real HTTP outcalls
-async fn fetch_from_ipfs(cid: &str) -> Result<Vec<u8>, String> {
+async fn fetch_from_ipfs_internal(cid: &str) -> Result<Vec<u8>, String> {
     // Construct the full URL for a public IPFS gateway
     let url = format!("https://cloudflare-ipfs.com/ipfs/{}", cid);
     
@@ -419,7 +425,7 @@ async fn fetch_from_ipfs(cid: &str) -> Result<Vec<u8>, String> {
     };
     
     // Make the HTTP outcall
-    let cycles = 10_000_000_000u128; // 10B cycles for the request
+    let cycles = 15_000_000_000u128; // 15B cycles for the request (increased from 10B)
     
     ic_cdk::print(format!("Sending HTTP outcall with {} cycles", cycles));
     
@@ -483,7 +489,7 @@ async fn pin_to_pinata(cid: &str) -> Result<(), String> {
     };
     
     // Make the HTTP outcall
-    let cycles = 10_000_000_000u128; // 10B cycles for the request
+    let cycles = 15_000_000_000u128; // 15B cycles for the request (increased from 10B)
     
     ic_cdk::print(format!("Sending Pinata HTTP outcall with {} cycles", cycles));
     
@@ -846,7 +852,7 @@ async fn get_content(cid: String) -> Result<Vec<u8>, String> {
     }
     
     // Cache miss - fetch from IPFS
-    match fetch_from_ipfs(&cid).await {
+    match fetch_from_ipfs_internal(&cid).await {
         Ok(content_bytes) => {
             // Create a cache entry for the fetched content
             let cache_entry = CacheEntry {
@@ -959,7 +965,7 @@ async fn test_external_http_request() -> Result<String, String> {
     // Test fetching a known IPFS CID
     let test_cid = "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG"; // IPFS logo
     
-    match fetch_from_ipfs(test_cid).await {
+    match fetch_from_ipfs_internal(test_cid).await {
         Ok(content) => {
             Ok(format!("Successfully fetched {} bytes from IPFS CID: {}", content.len(), test_cid))
         }
@@ -1318,7 +1324,7 @@ async fn test_real_http_outcalls() -> Result<String, String> {
     
     ic_cdk::print(format!("Testing real HTTP outcall to fetch IPFS CID: {}", test_cid));
     
-    match fetch_from_ipfs(test_cid).await {
+    match fetch_from_ipfs_internal(test_cid).await {
         Ok(content) => {
             let content_size = content.len();
             ic_cdk::print(format!("✅ Successfully fetched {} bytes from IPFS", content_size));

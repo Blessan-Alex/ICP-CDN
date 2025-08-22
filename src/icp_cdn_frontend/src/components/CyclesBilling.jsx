@@ -34,7 +34,7 @@ export default function CyclesBilling() {
         try {
           console.log('Initializing backend for cycles billing...');
           await initAuth();
-          const identity = getIdentity();
+          const identity = await getIdentity();
           const agent = new HttpAgent({
             host: import.meta.env.VITE_DFX_REPLICA_HOST || "http://127.0.0.1:4943",
             identity
@@ -134,8 +134,8 @@ export default function CyclesBilling() {
     try {
       console.log('Depositing cycles...');
 
-      // Note: In a real implementation, this would send cycles with the call
-      // For now, we'll simulate the deposit
+      // The backend deposit_cycles function accepts cycles sent with the call
+      // We need to send cycles with this call in a real implementation
       const result = await backend.deposit_cycles();
       
       setUserAccount(result);

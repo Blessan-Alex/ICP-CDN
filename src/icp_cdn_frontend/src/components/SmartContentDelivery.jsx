@@ -24,7 +24,7 @@ export default function SmartContentDelivery({ cid, showPreview = true }) {
         try {
           console.log('Initializing backend for smart content delivery...');
           await initAuth();
-          const identity = getIdentity();
+          const identity = await getIdentity();
           const agent = new HttpAgent({
             host: import.meta.env.VITE_DFX_REPLICA_HOST || "http://127.0.0.1:4943",
             identity
@@ -79,14 +79,10 @@ export default function SmartContentDelivery({ cid, showPreview = true }) {
       console.log('❌ Cache miss - falling back to IPFS fetch');
       setCacheStatus('cache_miss');
       
-      // In a real implementation, this would fetch from IPFS
-      // For now, we'll simulate the fallback
+      // Fetch from IPFS using the backend's fetch_from_ipfs function
       try {
-        // Simulate IPFS fetch delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Try to get content again (simulating IPFS fetch)
-        const result = await backend.get_content(cid);
+        // Use the backend's real IPFS fetch function
+        const result = await backend.fetch_from_ipfs(cid);
         
         const endTime = performance.now();
         const responseTimeMs = endTime - startTime;
@@ -98,7 +94,7 @@ export default function SmartContentDelivery({ cid, showPreview = true }) {
           setCacheStatus('ipfs_fetch');
           console.log('✅ IPFS fetch successful');
         } else {
-          throw new Error('Content not found in IPFS');
+          throw new Error(result.Err || 'Content not found in IPFS');
         }
       } catch (ipfsError) {
         setError(`Failed to fetch content: ${ipfsError.message}`);

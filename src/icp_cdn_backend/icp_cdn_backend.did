@@ -69,6 +69,7 @@ service : {
     
     // Main Content Serving Function
     "get_content": (text) -> (variant { Ok : vec nat8; Err : text });
+    "fetch_from_ipfs": (text) -> (variant { Ok : vec nat8; Err : text });
     
     // Upload and Pinning Functions
     "upload_content": (text, text, vec nat8) -> (variant { Ok : text; Err : text });
