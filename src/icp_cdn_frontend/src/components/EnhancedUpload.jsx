@@ -15,6 +15,8 @@ export default function EnhancedUpload() {
   const [backend, setBackend] = useState(null);
   const [userTierInfo, setUserTierInfo] = useState(null);
   const [loadingTierInfo, setLoadingTierInfo] = useState(false);
+  const [uploadResults, setUploadResults] = useState(null);
+  const [showResults, setShowResults] = useState(false);
   const fileInputRef = useRef(null);
 
   // Initialize backend connection
@@ -102,7 +104,7 @@ export default function EnhancedUpload() {
     return `bafybeih${hashHex.substring(0, 44)}`; // IPFS CID format
   };
 
-  // Enhanced upload to dCDN
+  // Enhanced upload to dCDN using working Pinata backend server
   const uploadToDcdn = async (file) => {
     try {
       setUploadStatus(prev => ({ ...prev, [file.name]: 'Generating CID...' }));
@@ -110,37 +112,87 @@ export default function EnhancedUpload() {
       // Generate CID for the file
       const cid = await generateCID(file);
       
-      setUploadStatus(prev => ({ ...prev, [file.name]: 'Reading file...' }));
-      
-      // Read file as bytes
-      const reader = new FileReader();
-      const fileBytes = await new Promise((resolve, reject) => {
-        reader.onload = () => resolve(new Uint8Array(reader.result));
-        reader.onerror = reject;
-        reader.readAsArrayBuffer(file);
-      });
-
-      setUploadStatus(prev => ({ ...prev, [file.name]: 'Uploading to dCDN...' }));
+      setUploadStatus(prev => ({ ...prev, [file.name]: 'Uploading to Pinata...' }));
       setUploadProgress(prev => ({ ...prev, [file.name]: 50 }));
 
-      // Upload to dCDN with automatic pinning
-      console.log('Calling upload_content with:', { cid, contentType: file.type, contentLength: fileBytes.length });
+      // Upload to Pinata backend server (which works perfectly)
+      const formData = new FormData();
+      formData.append('file', file);
       
-      const result = await backend.upload_content(
-        cid,
-        file.type,
-        Array.from(fileBytes)
+      const response = await fetch('http://localhost:8787/upload', {
+        method: 'POST',
+        body: formData
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Pinata upload failed: ${response.status}`);
+      }
+      
+      const pinataResult = await response.json();
+      
+      if (!pinataResult.success) {
+        throw new Error(pinataResult.error || 'Pinata upload failed');
+      }
+      
+      setUploadStatus(prev => ({ ...prev, [file.name]: 'Storing in dCDN cache...' }));
+      setUploadProgress(prev => ({ ...prev, [file.name]: 75 }));
+
+      // Check file size for cache limits (20MB)
+      const MAX_CACHE_SIZE = 20 * 1024 * 1024; // 20MB
+      let cacheResult = null;
+      
+      if (file.size > MAX_CACHE_SIZE) {
+        setUploadStatus(prev => ({ ...prev, [file.name]: '⚠️ File too large for cache (>20MB), storing metadata only' }));
+        // Skip caching for large files, only store metadata
+      } else {
+        // Read file content for caching
+        const reader = new FileReader();
+        const fileBytes = await new Promise((resolve, reject) => {
+          reader.onload = () => resolve(new Uint8Array(reader.result));
+          reader.onerror = reject;
+          reader.readAsArrayBuffer(file);
+        });
+
+        // Store file content in dCDN cache using direct cache function (no HTTP outcalls)
+        cacheResult = await backend.test_create_cache_entry(
+          cid, // Use the generated CID
+          file.type,
+          BigInt(fileBytes.length),
+          Array.from(fileBytes)
+        );
+
+        if (!cacheResult.Ok) {
+          throw new Error(cacheResult.Err || 'Failed to cache file content in dCDN');
+        }
+      }
+
+      // Also store metadata for file management
+      const metadataResult = await backend.add_ipfs_file(
+        file.name,
+        pinataResult.ipfsHash,
+        BigInt(pinataResult.size),
+        pinataResult.contentType
       );
 
-      console.log('Upload result:', result);
-
-      if (result.Ok) {
-        setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
-        setUploadStatus(prev => ({ ...prev, [file.name]: '✅ Uploaded and pinned!' }));
-        return { success: true, cid: result.Ok };
-      } else {
-        throw new Error(result.Err || 'Upload failed');
+      if (!metadataResult.Ok) {
+        throw new Error(metadataResult.Err || 'Failed to store metadata in dCDN');
       }
+
+      setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
+      
+      // Update status based on whether file was cached
+      if (file.size > MAX_CACHE_SIZE) {
+        setUploadStatus(prev => ({ ...prev, [file.name]: '✅ Uploaded to Pinata (metadata only - file too large for cache)' }));
+      } else {
+        setUploadStatus(prev => ({ ...prev, [file.name]: '✅ Uploaded to Pinata and cached in dCDN!' }));
+      }
+      
+      return { 
+        success: true, 
+        cid: cid,
+        ipfsHash: pinataResult.ipfsHash,
+        gatewayUrl: pinataResult.gatewayUrl
+      };
     } catch (error) {
       console.error('Upload error:', error);
       setUploadStatus(prev => ({ ...prev, [file.name]: `❌ ${error.message}` }));
@@ -199,30 +251,43 @@ export default function EnhancedUpload() {
     setUploadProgress({});
     setUploadStatus({});
 
-    const results = [];
+    const uploadResults = [];
     let successCount = 0;
 
     for (const file of selectedFiles) {
       try {
         const result = await uploadToDcdn(file);
-        results.push(result);
+        uploadResults.push(result);
         successCount++;
       } catch (error) {
         console.error(`Failed to upload ${file.name}:`, error);
-        results.push({ success: false, error: error.message });
+        uploadResults.push({ success: false, error: error.message });
       }
     }
 
     setUploading(false);
     
+    // Show results in a dropdown instead of popup
+    const results = {
+      total: selectedFiles.length,
+      success: successCount,
+      failed: selectedFiles.length - successCount,
+      files: selectedFiles.map((file, index) => ({
+        name: file.name,
+        size: file.size,
+        status: uploadStatus[file.name] || 'Unknown',
+        success: uploadStatus[file.name]?.includes('✅') || false
+      }))
+    };
+    
+    // Store results for display
+    setUploadResults(results);
+    
     if (successCount === selectedFiles.length) {
-      alert(`✅ All ${successCount} files uploaded successfully!`);
       setSelectedFiles([]);
       setUploadProgress({});
       setUploadStatus({});
       if (fileInputRef.current) fileInputRef.current.value = null;
-    } else {
-      alert(`⚠️ ${successCount}/${selectedFiles.length} files uploaded successfully. Check status for details.`);
     }
   };
 
@@ -452,14 +517,79 @@ export default function EnhancedUpload() {
             Clear All
           </motion.button>
         )}
-      </div>
+             </div>
 
-      {/* Upload Info */}
-      <div className="mt-4 p-3 bg-neutral-800/30 rounded-lg">
-        <p className="text-sm text-neutral-400">
-          <strong>Note:</strong> Files are automatically pinned to IPFS and cached in the dCDN for fast global delivery.
-        </p>
-      </div>
+       {/* Upload Results Dropdown */}
+       {uploadResults && (
+         <motion.div 
+           initial={{ opacity: 0, y: 20 }} 
+           animate={{ opacity: 1, y: 0 }}
+           className="mt-6 p-4 bg-gradient-to-r from-green-500/10 to-emerald-500/10 rounded-lg border border-green-500/20"
+         >
+           <div className="flex items-center justify-between mb-3">
+             <h3 className="text-lg font-semibold text-green-400 flex items-center gap-2">
+               <CheckCircle className="w-5 h-5" />
+               Upload Results
+             </h3>
+             <button
+               onClick={() => setShowResults(!showResults)}
+               className="text-green-400 hover:text-green-300 transition-colors"
+             >
+               {showResults ? '▼' : '▶'}
+             </button>
+           </div>
+           
+           <div className="text-sm text-neutral-300 mb-3">
+             <span className="text-green-400 font-semibold">{uploadResults.success}</span> successful, 
+             <span className="text-red-400 font-semibold"> {uploadResults.failed}</span> failed out of {uploadResults.total} files
+           </div>
+           
+           {showResults && (
+             <motion.div 
+               initial={{ opacity: 0, height: 0 }}
+               animate={{ opacity: 1, height: 'auto' }}
+               className="space-y-2 max-h-60 overflow-y-auto"
+             >
+               {uploadResults.files.map((file, index) => (
+                 <div key={index} className={`p-2 rounded border ${
+                   file.success 
+                     ? 'bg-green-500/10 border-green-500/20' 
+                     : 'bg-red-500/10 border-red-500/20'
+                 }`}>
+                   <div className="flex items-center justify-between">
+                     <span className="font-medium text-white">{file.name}</span>
+                     <span className={`text-xs ${
+                       file.success ? 'text-green-400' : 'text-red-400'
+                     }`}>
+                       {file.success ? '✅' : '❌'}
+                     </span>
+                   </div>
+                   <div className="text-xs text-neutral-400">
+                     {(file.size / 1024 / 1024).toFixed(2)} MB • {file.status}
+                   </div>
+                 </div>
+               ))}
+             </motion.div>
+           )}
+           
+           <button
+             onClick={() => {
+               setUploadResults(null);
+               setShowResults(false);
+             }}
+             className="mt-3 text-xs text-neutral-400 hover:text-neutral-300 transition-colors"
+           >
+             Clear Results
+           </button>
+         </motion.div>
+       )}
+
+       {/* Upload Info */}
+       <div className="mt-4 p-3 bg-neutral-800/30 rounded-lg">
+         <p className="text-sm text-neutral-400">
+           <strong>Note:</strong> Files are automatically pinned to IPFS and cached in the dCDN for fast global delivery.
+         </p>
+       </div>
     </motion.div>
   );
 }

@@ -406,14 +406,21 @@ fn put_cache_entry(cid: String, cache_entry: CacheEntry) -> Result<(), String> {
     
     // Get user account and check cache limits
     let user_account = ACCOUNTS.with(|accounts| {
-        let accounts = accounts.borrow();
-        accounts.get(&caller_principal).cloned().unwrap_or_else(|| UserAccount {
-            user_principal: caller_principal,
-            cycles_balance: 0,
-            tier: UserTier::Free,
-            cache_usage_bytes: 0,
-            pinata_enabled: false,
-        })
+        let mut accounts = accounts.borrow_mut();
+        if let Some(account) = accounts.get(&caller_principal) {
+            account.clone()
+        } else {
+            // Create and store a new user account
+            let new_account = UserAccount {
+                user_principal: caller_principal,
+                cycles_balance: 0,
+                tier: UserTier::Free,
+                cache_usage_bytes: 0,
+                pinata_enabled: false,
+            };
+            accounts.insert(caller_principal, new_account.clone());
+            new_account
+        }
     });
     
     let cache_limit = user_account.get_cache_limit();
@@ -462,11 +469,15 @@ fn update_user_cache_usage(principal: Principal, delta: i64) {
     ACCOUNTS.with(|accounts| {
         let mut accounts = accounts.borrow_mut();
         if let Some(account) = accounts.get_mut(&principal) {
+            let old_usage = account.cache_usage_bytes;
             if delta > 0 {
                 account.cache_usage_bytes = account.cache_usage_bytes.saturating_add(delta as u64);
             } else {
                 account.cache_usage_bytes = account.cache_usage_bytes.saturating_sub((-delta) as u64);
             }
+            ic_cdk::print(format!("Updated cache usage for principal {}: {} -> {} (delta: {})", principal, old_usage, account.cache_usage_bytes, delta));
+        } else {
+            ic_cdk::print(format!("User account not found for principal: {}", principal));
         }
     });
 }
@@ -646,32 +657,8 @@ async fn upload_content(cid: String, content_type: String, content: Vec<u8>) -> 
         return Err(format!("Failed to cache uploaded content: {}", e));
     }
     
-    // Upload to Pinata with tier-based behavior
-    let upload_result = if user_account.tier == UserTier::Free {
-        // Free tier: Upload to Pinata without pinning (direct upload only)
-        match upload_to_pinata(&content, &format!("file_{}", cid), &content_type, false).await {
-            Ok(ipfs_hash) => {
-                ic_cdk::print(format!("Free tier: Uploaded file to Pinata (no pinning) with IPFS hash: {}", ipfs_hash));
-                format!("Content uploaded to cache and Pinata. CID: {} | IPFS Hash: {} (Free tier - direct upload only, not pinned)", cid, ipfs_hash)
-            }
-            Err(e) => {
-                ic_cdk::print(format!("Free tier: Failed to upload to Pinata: {}", e));
-                format!("Content uploaded to cache only. CID: {} (Pinata upload failed: {})", cid, e)
-            }
-        }
-    } else {
-        // Paid tiers: Upload to Pinata with pinning for persistence
-        match upload_to_pinata(&content, &format!("file_{}", cid), &content_type, true).await {
-            Ok(ipfs_hash) => {
-                ic_cdk::print(format!("Paid tier: Uploaded and pinned file to Pinata with IPFS hash: {}", ipfs_hash));
-                format!("Content uploaded to cache and pinned to Pinata. CID: {} | IPFS Hash: {} (Tier: {:?} - persistent pinning enabled)", cid, ipfs_hash, user_account.tier)
-            }
-            Err(e) => {
-                ic_cdk::print(format!("Paid tier: Failed to upload/pin to Pinata: {}", e));
-                format!("Content uploaded to cache only. CID: {} (Pinata upload/pinning failed: {})", cid, e)
-            }
-        }
-    };
+    // For now, only store in cache (Pinata upload handled by frontend via backend server)
+    let upload_result = format!("Content uploaded to cache. CID: {} (Pinata upload handled separately)", cid);
     
     Ok(upload_result)
 }
@@ -792,11 +779,11 @@ fn clear_cache() -> (u64, u64) {
 // This function securely strips out response headers to prevent state-breaking non-determinism
 #[ic_cdk::query]
 fn transform(_raw: TransformContext) -> HttpResponse {
-    // Create a new HttpResponse with only the essential fields, stripping headers for security
+    // For now, return a simple response to avoid transform issues
     HttpResponse {
-        status: Nat::from(200u64), // Default status
-        headers: vec![], // Strip all headers to prevent non-determinism
-        body: vec![], // Empty body for transform function
+        status: Nat::from(200u64),
+        headers: vec![],
+        body: vec![],
     }
 }
 
@@ -822,13 +809,7 @@ async fn fetch_from_ipfs_internal(cid: &str) -> Result<Vec<u8>, String> {
         ],
         body: Some(vec![]),
         max_response_bytes: Some(1024 * 1024), // 1MB max response
-        transform: Some(TransformContext {
-            function: TransformFunc(candid::Func {
-                principal: ic_cdk::api::id(),
-                method: "transform".to_string(),
-            }),
-            context: vec![],
-        }),
+        transform: None,
     };
     
     // Make the HTTP outcall
@@ -864,35 +845,46 @@ async fn fetch_from_ipfs_internal(cid: &str) -> Result<Vec<u8>, String> {
 
 // Upload file content to Pinata using pinFileToIPFS API
 async fn upload_to_pinata(content: &[u8], filename: &str, content_type: &str, pin_content: bool) -> Result<String, String> {
-    let url = if pin_content {
-        "https://api.pinata.cloud/pinning/pinFileToIPFS"
-    } else {
-        "https://api.pinata.cloud/pinning/pinFileToIPFS"  // Same endpoint, but without pinning metadata
-    };
+    let url = "https://api.pinata.cloud/pinning/pinFileToIPFS";
     
-    ic_cdk::print(format!("Making HTTP outcall to Pinata API to upload file: {}", filename));
+    ic_cdk::print(format!("Making HTTP outcall to Pinata API to upload file: {} (pin_content: {})", filename, pin_content));
     
-    // Create multipart form data body
+    // Create multipart form data body with proper structure
     let boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW";
     let mut body = Vec::new();
     
-    // Add file field
+    // Sanitize filename to prevent multipart form data issues
+    let safe_filename = filename.replace("\"", "").replace("\r", "").replace("\n", "");
+    
+    // Add file field with proper formatting
     body.extend_from_slice(format!("--{}\r\n", boundary).as_bytes());
-    body.extend_from_slice(format!("Content-Disposition: form-data; name=\"file\"; filename=\"{}\"\r\n", filename).as_bytes());
+    body.extend_from_slice(format!("Content-Disposition: form-data; name=\"file\"; filename=\"{}\"\r\n", safe_filename).as_bytes());
     body.extend_from_slice(format!("Content-Type: {}\r\n\r\n", content_type).as_bytes());
     body.extend_from_slice(content);
     body.extend_from_slice(b"\r\n");
     
-    // Add metadata field (for pinning configuration)
+    // Debug: Log the multipart form data being sent
+    ic_cdk::print(format!("Multipart form data boundary: {}", boundary));
+    ic_cdk::print(format!("File field: name=\"file\"; filename=\"{}\"", filename));
+    ic_cdk::print(format!("Content-Type: {}", content_type));
+    ic_cdk::print(format!("Content length: {} bytes", content.len()));
+    
+    // For free tier, don't add any metadata to avoid JSON parsing issues
+    // Only add metadata for paid tiers (when pin_content is true)
     if pin_content {
         body.extend_from_slice(format!("--{}\r\n", boundary).as_bytes());
         body.extend_from_slice(b"Content-Disposition: form-data; name=\"pinataMetadata\"\r\n\r\n");
-        let metadata = format!("{{\"name\":\"{}\",\"keyvalues\":{{\"pinned\":\"true\",\"contentType\":\"{}\"}}}}", filename, content_type);
+        let metadata = format!("{{\"name\":\"{}\"}}", safe_filename);
+        ic_cdk::print(format!("Pinata metadata JSON: {}", metadata));
         body.extend_from_slice(metadata.as_bytes());
         body.extend_from_slice(b"\r\n");
     }
     
+    // End the multipart form data
     body.extend_from_slice(format!("--{}--\r\n", boundary).as_bytes());
+    
+    // Debug: Log the complete multipart form data being sent
+    ic_cdk::print(format!("Complete multipart form data length: {} bytes", body.len()));
     
     // Create headers for the POST request
     let headers = vec![
@@ -907,13 +899,7 @@ async fn upload_to_pinata(content: &[u8], filename: &str, content_type: &str, pi
         headers,
         body: Some(body),
         max_response_bytes: Some(1024 * 1024), // 1MB max response
-        transform: Some(TransformContext {
-            function: TransformFunc(candid::Func {
-                principal: ic_cdk::api::id(),
-                method: "transform".to_string(),
-            }),
-            context: vec![],
-        }),
+        transform: None,
     };
     
     // Make the HTTP outcall
@@ -1039,6 +1025,37 @@ fn test_get_user_account(principal: Principal) -> Result<UserAccount, String> {
     ACCOUNTS.with(|accounts| {
         let accounts = accounts.borrow();
         accounts.get(&principal).cloned().ok_or_else(|| "User account not found".to_string())
+    })
+}
+
+// Get current user's cache usage
+#[ic_cdk::query]
+fn get_current_user_cache_usage() -> Result<u64, String> {
+    let caller_principal = ic_cdk::api::caller();
+    
+    ACCOUNTS.with(|accounts| {
+        let accounts = accounts.borrow();
+        if let Some(account) = accounts.get(&caller_principal) {
+            Ok(account.cache_usage_bytes)
+        } else {
+            // Create a new user account if it doesn't exist
+            let new_account = UserAccount {
+                user_principal: caller_principal,
+                cycles_balance: 0,
+                tier: UserTier::Free,
+                cache_usage_bytes: 0,
+                pinata_enabled: false,
+            };
+            
+            // Insert the new account
+            drop(accounts); // Release the borrow
+            ACCOUNTS.with(|accounts| {
+                let mut accounts = accounts.borrow_mut();
+                accounts.insert(caller_principal, new_account);
+            });
+            
+            Ok(0) // Return 0 for new accounts
+        }
     })
 }
 

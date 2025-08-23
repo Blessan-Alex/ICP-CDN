@@ -63,10 +63,35 @@ export default function Tiers() {
       console.log('Loading tier information...');
 
       // Get user's tier info
+      console.log('Current principal:', principal?.toString());
       const userTierResult = await backend.get_user_tier_info();
+      console.log('Raw user tier result:', userTierResult);
+      
       if (userTierResult.Ok) {
-        setUserTierInfo(userTierResult.Ok);
-        console.log('User tier info loaded:', userTierResult.Ok);
+        // Get current user's cache usage using the new function
+        const cacheUsageResult = await backend.get_current_user_cache_usage();
+        console.log('Cache usage result:', cacheUsageResult);
+        
+        let cacheUsageBytes = 0n;
+        if (cacheUsageResult.Ok !== undefined) {
+          cacheUsageBytes = cacheUsageResult.Ok;
+        } else {
+          console.warn('Failed to get current user cache usage, using tier info cache usage');
+          cacheUsageBytes = userTierResult.Ok.cache_usage_bytes;
+        }
+        
+        console.log('Cache usage bytes:', cacheUsageBytes);
+        console.log('Cache usage type:', typeof cacheUsageBytes);
+        console.log('Cache usage as number:', Number(cacheUsageBytes));
+        
+        // Update the user tier info with the correct cache usage
+        const updatedUserTierInfo = {
+          ...userTierResult.Ok,
+          cache_usage_bytes: cacheUsageBytes
+        };
+        
+        setUserTierInfo(updatedUserTierInfo);
+        console.log('User tier info loaded:', updatedUserTierInfo);
       } else {
         throw new Error(userTierResult.Err || 'Failed to load user tier info');
       }
@@ -90,6 +115,21 @@ export default function Tiers() {
     if (backend) {
       loadTierInfo();
     }
+  }, [backend]);
+
+  // Auto-refresh tier info every 5 seconds to show real-time cache usage
+  useEffect(() => {
+    if (!backend) return;
+
+    // Initial load
+    loadTierInfo();
+
+    const interval = setInterval(() => {
+      console.log('Auto-refreshing tier info...');
+      loadTierInfo();
+    }, 5000); // Refresh every 5 seconds
+
+    return () => clearInterval(interval);
   }, [backend]);
 
   // Upgrade tier
@@ -283,8 +323,11 @@ export default function Tiers() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="flex justify-end mb-6"
+          className="flex justify-between items-center mb-6"
         >
+          <div className="text-sm text-neutral-400">
+            Cache usage updates automatically every 5 seconds
+          </div>
           <motion.button
             onClick={loadTierInfo}
             disabled={loading}
@@ -293,7 +336,7 @@ export default function Tiers() {
             whileTap={{ scale: 0.98 }}
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Loading...' : 'Refresh'}
+            {loading ? 'Loading...' : 'Refresh Now'}
           </motion.button>
         </motion.div>
 

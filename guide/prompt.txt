@@ -120,9 +120,183 @@ Let's refactor our cache to include this complete LRU eviction flow.
 
 -----
 
-*(Prompts for steps 1.4, 1.5, 1.6, 1.7, and 1.8 would follow a similar detailed pattern)*
+Prompt 1.4: Configure HTTP Outcalls
+Cursor, it's time to connect our canister to the outside world. Let's set up the boilerplate for making HTTP outcalls, which is the foundation for making our dCDN truly decentralized.
 
------
+Please review the IC documentation on http_request if needed.
+
+Our Goal: Set up the necessary types and the management canister settings to enable secure, deterministic HTTPS requests directly from our canister.
+
+Implementation Details:
+
+Define Request/Response Types:
+
+Import the necessary types from ic_cdk::api::http_request.
+
+Define the standard structs required for the HTTP outcall interface: HttpRequest, HttpResponse, and the TransformContext.
+
+Implement the transform Function:
+
+Create a #[query] function named transform(raw: TransformContext) -> HttpResponse.
+
+The purpose of this function is to securely strip out response headers from the external service, leaving only the data we need (like the body and status code) to prevent state-breaking non-determinism.
+
+The implementation should create a new HttpResponse and selectively copy over the essential fields from raw.response.
+
+Update dfx.json (Instructional):
+
+Remind me in your output that for HTTP outcalls to work, I need to specify the canister that will make the calls in the dfx.json file. This isn't code you can write, but it's a critical configuration step.
+
+Let's lay this groundwork for our on-chain fetching capabilities.
+
+Prompt 1.5: Implement On-Chain IPFS Fetch
+Alright Cursor, with the HTTP outcall boilerplate in place, let's implement the core feature: fetching content from IPFS on a cache miss.
+
+Please review the cache state, the LRU logic, and the HTTP outcall setup from the previous step.
+
+Our Goal: Create an async function that, when given a CID not present in the cache, makes an HTTP outcall to an IPFS gateway, retrieves the content, and stores it.
+
+Implementation Details:
+
+Create the fetch_from_ipfs async Function:
+
+This should be a private async function that takes a cid: &str and returns a Result<Vec<u8>, String>.
+
+Inside, construct the full URL for a public IPFS gateway (e.g., https://cloudflare-ipfs.com/ipfs/{cid}).
+
+Build the HttpRequest object for a GET request. Crucially, set the transform field to Some(TransformContext::new(transform, vec![])).
+
+Make the HTTP Request:
+
+Call ic_cdk::api::http_request(request).await. This is the main asynchronous call.
+
+The call costs cycles. For now, we can use a large enough number to ensure it goes through, but note that we'll need to calculate this properly later.
+
+Process the Response:
+
+Handle the Result from the http_request call.
+
+On success, check the response status code. If it's 200, return Ok(response.body).
+
+If the status code is anything else (e.g., 404), return an Err with a descriptive message.
+
+Integrate into the Main get Logic:
+
+Modify your main public content-serving function.
+
+If it's a cache miss, it should now await our new fetch_from_ipfs function.
+
+If the fetch is successful, it should call the cache put logic to store the new bytes before returning them to the user.
+
+Let's build this end-to-end on-chain fetch flow.
+
+Prompt 1.6: Add On-Chain Pinning
+Cursor, to ensure the long-term persistence of our users' data on IPFS, we must pin it. Let's use an HTTP outcall to interact with the Pinata API directly from our canister.
+
+Please review the HTTP outcall setup. You'll need to handle POST requests with authorization.
+
+Our Goal: Create and integrate a function that pins a given CID to Pinata to guarantee its availability on the IPFS network.
+
+Implementation Details:
+
+Securely Store API Key:
+
+For this hackathon MVP, let's store the Pinata JWT as a private static constant within our code. Acknowledge in a comment that in production, this should be managed via encrypted secrets.
+
+Create the pin_to_pinata async Function:
+
+This will be a private async function that takes cid: &str.
+
+Construct the URL for the Pinata API: https://api.pinata.cloud/pinning/pinByHash.
+
+Create an HttpRequest for a POST request.
+
+Set Headers: Add the Authorization: Bearer {PINATA_JWT} and Content-Type: application/json headers.
+
+Set Body: Create the JSON body required by the Pinata API, e.g., {"hashToPin": "{cid}"}.
+
+Make the http_request call and handle the response, logging success or failure.
+
+Integrate into the Upload Flow:
+
+In the main function that handles new content uploads, after the user has paid their cycles and the content is processed, call this new pin_to_pinata function.
+
+Use ic_cdk::spawn to run the pinning request in the background. This is crucial so the user doesn't have to wait for the Pinata API to respond.
+
+Let's implement this crucial persistence feature.
+
+Prompt 1.7: Create Image Resizing Function (MVP)
+Cursor, let's add a "wow" feature. We will perform on-the-fly image resizing directly inside the canister, showcasing the computational power of the IC.
+
+Please analyze the main content serving endpoint (http_request based).
+
+Our Goal: Enhance our content-serving endpoint to accept URL query parameters for resizing images before they are delivered.
+
+Implementation Details:
+
+Add the image Crate:
+
+Add the image crate to Cargo.toml. For the MVP, let's enable jpeg and png features.
+
+image = { version = "0.24", default-features = false, features = ["jpeg", "png"] }
+
+Enhance the Serving Endpoint:
+
+Modify the main http_request function that serves content.
+
+It needs to parse the URL for query parameters like ?width=200.
+
+If a valid width parameter is found:
+
+Fetch the original image bytes from the cache.
+
+Load the bytes into a dynamic image object using image::load_from_memory.
+
+Use image::imageops::resize to create a new, smaller image while preserving the aspect ratio (set height to 0).
+
+Encode the resized image back into its original format (or a default like PNG).
+
+Return these new transformed bytes in the HttpResponse.
+
+If no resizing parameters are present, simply serve the original, unmodified bytes from the cache.
+
+Let's build this impressive on-chain compute feature.
+
+Prompt 1.8: Design the Scaling Plan
+Cursor, this is a planning task, not a coding task. To win, we must show we've thought beyond the MVP. Let's create a clear and concise scaling plan.
+
+Our Goal: Create a new markdown file named SCALING.md that outlines our strategy for scaling the dCDN beyond the limits of a single canister.
+
+Implementation Details:
+
+Please generate the content for SCALING.md to include the following sections:
+
+The Challenge: Briefly explain that a single canister has finite storage, and a global CDN will exceed this.
+
+The Solution: A Multi-Canister Architecture: Describe our proposed system.
+
+Router Canister: Explain its role as the single entry point. It takes a request, applies a consistent hashing algorithm to the CID, and determines which "Shard Canister" is responsible for that piece of content. It then forwards the request using an inter-canister call.
+
+Shard Canisters: Explain that these are clones of our main dCDN canister. Each one holds a subset of the total cached data.
+
+Architectural Diagram:
+
+Provide a Mermaid flowchart diagram illustrating this request flow: User --> Router Canister --> Shard Canister.
+
+Future Enhancements:
+
+Briefly mention how this architecture allows for dynamically adding new Shard Canisters to the system as storage needs grow, making it horizontally scalable.
+
+Please generate this complete markdown file.
+
+
+Next Steps to Fully Implement Judge's Feedback:
+Implement real HTTP outcalls using ic_cdk::api::http_request
+Deploy and Test: Run the test script to verify HTTP outcalls work
+Add the http_request function for boundary node integration
+Replace simulated functions with actual IPFS/Pinata API calls
+Test with real external services
+
 
 ### **Phase 2: From MVP to Production-Grade Infrastructure 🚀**
 

@@ -1,0 +1,108 @@
+Prompts to implemet 
+# Cursor Prompt
+
+I am building a CDN/cache prototype on the Internet Computer for a hackathon.  
+I need code in **Rust (IC canister)** that demonstrates:
+
+1. **Free hackathon feasibility**  
+   - Each user gets a **10MB free cache tier**.  
+   - Implement a simple **LRU eviction policy** so if they exceed quota, older entries are removed.  
+   - Store cache entries as `HashMap<String, Vec<u8>>`.
+
+2. **Scalability story**  
+   - Add an enum `CacheTier` with limits:  
+     - Free: 10MB  
+     - Basic: 50MB  
+     - Premium: 100MB  
+     - Enterprise: 500MB  
+   - User struct should track `tier`, `current_size`, and `entries`.
+
+3. **Upgrade path (mocked)**  
+   - Implement a function `upgrade_tier(user_id, new_tier)` that updates their limit (no billing required, just simulate it).  
+   - Show how 100MB can be unlocked for Premium users.
+
+4. **Hackathon demo plan**  
+   - Start with Free tier (10MB).  
+   - Provide sample functions:  
+     - `put(user_id, key, data)` → stores data with eviction if above limit.  
+     - `get(user_id, key)` → retrieves cached data.  
+     - `stats(user_id)` → shows tier, size, usage.  
+
+5. **Extra (for pitch)**  
+   - Write a small function `simulate_costs(num_users: u64)` that prints out approximate cycle costs for storage (e.g., assume 1GB ≈ 1T cycles).  
+   - This will let me show judges a “scaling cost” graph.
+
+Keep the implementation **clean, simple, and hackathon-friendly**. I don’t need production-level code, just enough to demo the feasibility (free tier) and show the potential to scale (multi-tier + cost simulation).
+
+
+next prompt
+# Cursor Diagram Prompt
+
+Generate a **Mermaid diagram** that shows how our caching system scales:
+
+1. **Single Canister (Hackathon Prototype)**
+   - One canister
+   - Handles up to ~200 users
+   - Each user has a free 10MB cache
+   - LRU eviction keeps storage within limits
+
+2. **Multi-Canister (Sharded Architecture for Scaling)**
+   - A "User Router Canister" that maps users to shards (e.g., `user_id % N`)
+   - Multiple "Cache Shard Canisters" (Cache Shard 1, Cache Shard 2, Cache Shard 3, …)
+   - Each shard handles up to ~3GB storage
+   - Users are distributed evenly across shards
+   - Premium users get larger allocations (50MB, 100MB, 500MB)
+
+3. **Enterprise Tier**
+   - Dedicated shard for enterprise customer
+   - Custom cache allocation (e.g., 500MB+ per user)
+
+Make the diagram **clean and easy for hackathon judges** to understand — one side shows the **Hackathon (Free Tier, Single Canister)** and the other side shows **Future Scaling (Multi-Canister Shards + Router)**.
+
+
+next is the guide 
+
+Got it 🚀 You want something that’s **free enough to demo at a hackathon**, but also **shows scalability potential** for investors/judges. Here’s how you can position it:
+
+---
+
+## ✅ Hackathon Feasibility (Free + Demo-Ready)
+
+* **Use your existing cycles balance** (3T cycles is plenty for a prototype).
+* Instead of giving **100MB per user right away**, show:
+
+  * **Free tier → 5–10MB/user** (fits 100–200 users comfortably on your current balance).
+  * This makes it actually free & demo-able during the hackathon.
+* Implement a **cache eviction policy (LRU/FIFO)** so even if someone uploads beyond 10MB, the system still behaves gracefully.
+
+---
+
+## 🚀 Scalability Story (Show Potential)
+
+* Present **tiers**: Free (10MB), Basic (50MB), Premium (100MB), Enterprise (500MB+).
+* Highlight that **scaling beyond 100 users** requires more cycles, which can be funded by:
+
+  * **User payments** (cycles-as-subscription model).
+  * **Enterprise sponsorships** (ICP cycles funded by client orgs).
+* This demonstrates the **monetization pathway** without needing you to fund it all today.
+
+---
+
+## 🛠️ Demo Plan
+
+1. **Deploy with a 10MB free tier** (fits hackathon constraints).
+2. **Show how a premium tier could unlock 100MB** (mocked, no need to actually allocate all).
+3. Visualize cost scaling (a chart showing storage vs. cycle burn).
+4. Pitch: *“We’re demoing with 10MB free/user, but the architecture scales to 100MB+ per user as cycles or revenue grow.”*
+
+---
+
+## 💡 Messaging for Judges
+
+> “For this hackathon, we’re running on a free-tier setup (10MB/user). This is enough to prove functionality and keep costs at zero. But the system is designed to scale—when users or organizations pay, they unlock 100MB or more, making it sustainable and enterprise-ready.”
+
+---
+
+👉 This way, you **keep it free now** (hackathon-safe) while **convincingly showing the path to scale** (investor-friendly).
+
+Do you want me to sketch out a **Rust code snippet for a tiered LRU cache** (with 10MB free & upgrade path) so you can both demo and pitch scalability?

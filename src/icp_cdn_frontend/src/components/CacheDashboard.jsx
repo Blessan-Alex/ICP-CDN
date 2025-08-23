@@ -76,13 +76,23 @@ export default function CacheDashboard() {
     try {
       console.log('Loading cache statistics...');
       
-      // Get basic cache statistics
+      // Get basic cache statistics (global)
       const stats = await backend.test_get_cache_stats();
-      console.log('Cache stats result:', stats);
+      console.log('Global cache stats result:', stats);
+      
+      // Get current user's cache usage
+      const userCacheUsageResult = await backend.get_current_user_cache_usage();
+      console.log('User cache usage result:', userCacheUsageResult);
+      
+      let userCacheBytes = 0;
+      if (userCacheUsageResult.Ok !== undefined) {
+        userCacheBytes = Number(userCacheUsageResult.Ok);
+      }
       
       setCacheStats({
         entries: Number(stats[0]),
-        totalBytes: Number(stats[1])
+        totalBytes: Number(stats[1]),
+        userCacheBytes: userCacheBytes
       });
 
       // Get LRU statistics
@@ -423,7 +433,7 @@ export default function CacheDashboard() {
             <h3 className="text-2xl font-bold mb-2">
               {loading ? '...' : formatBytes(cacheStats?.totalBytes || 0)}
             </h3>
-            <p className="text-neutral-400 text-sm">Total Size</p>
+            <p className="text-neutral-400 text-sm">Global Cache Size</p>
             <div className="mt-3">
               <div className="w-full bg-neutral-700 rounded-full h-2 mb-1">
                 <div
@@ -433,6 +443,33 @@ export default function CacheDashboard() {
               </div>
               <div className="text-xs text-neutral-500">
                 {Math.round((cacheStats?.totalBytes || 0) / (20 * 1024 * 1024) * 100)}% of 20MB limit
+              </div>
+            </div>
+          </motion.div>
+
+          {/* User Cache Usage */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.45 }}
+            className="bg-white/10 dark:bg-neutral-900/40 backdrop-blur-xl rounded-2xl p-6 border border-white/30 dark:border-neutral-700 shadow-xl"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <Database className="w-8 h-8 text-green-500" />
+            </div>
+            <h3 className="text-2xl font-bold mb-2">
+              {loading ? '...' : formatBytes(cacheStats?.userCacheBytes || 0)}
+            </h3>
+            <p className="text-neutral-400 text-sm">Your Cache Usage</p>
+            <div className="mt-3">
+              <div className="w-full bg-neutral-700 rounded-full h-2 mb-1">
+                <div
+                  className="bg-gradient-to-r from-green-500 to-green-700 h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${Math.min((cacheStats?.userCacheBytes || 0) / (20 * 1024 * 1024) * 100, 100)}%` }}
+                ></div>
+              </div>
+              <div className="text-xs text-neutral-500">
+                {Math.round((cacheStats?.userCacheBytes || 0) / (20 * 1024 * 1024) * 100)}% of your 20MB limit
               </div>
             </div>
           </motion.div>

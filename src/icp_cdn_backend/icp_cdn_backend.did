@@ -93,6 +93,7 @@ service : {
     "test_lru_eviction_demo": () -> (variant { Ok : text; Err : text });
     "test_lru_access_pattern": () -> (variant { Ok : text; Err : text });
     "test_lru_touch_debug": (text) -> (variant { Ok : text; Err : text });
+    "get_current_user_cache_usage": () -> (variant { Ok : nat64; Err : text }) query;
     
     // HTTP Outcall Test Functions
     "test_http_outcall_setup": () -> (variant { Ok : text; Err : text });
