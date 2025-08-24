@@ -26,6 +26,7 @@ export const enhancedNavItems = [
   { label: "Tiers", href: "/tiers", type: "page" },
   { label: "Billing", href: "/billing", type: "page" },
   { label: "Tests", href: "/tests", type: "page" },
+  { label: "Library Demo", href: "/library-demo", type: "page" },
 ];
 
 export const features = [
