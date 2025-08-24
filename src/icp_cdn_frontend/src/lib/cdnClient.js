@@ -348,6 +348,163 @@ export class CdnClient {
             throw new Error(`Cache usage retrieval failed: ${error.message}`);
         }
     }
+
+    // ===== CACHE MANAGEMENT =====
+
+    // Get cache entry details
+    async getCacheEntryDetails(cid) {
+        if (!this.backend) {
+            throw new Error("Backend not initialized. Call initBackend() first.");
+        }
+
+        try {
+            const result = await this.backend.get_cache_entry_details(cid);
+            if (result.Ok) {
+                const entry = result.Ok;
+                return new CacheEntry(
+                    entry.cid,
+                    entry.content_type,
+                    convertBigIntToString(entry.size),
+                    convertBigIntToString(entry.last_accessed_ts),
+                    entry.bytes
+                );
+            } else {
+                throw new Error(result.Err || 'Cache entry not found');
+            }
+        } catch (error) {
+            console.error('Get cache entry details failed:', error);
+            throw new Error(`Cache entry retrieval failed: ${error.message}`);
+        }
+    }
+
+    // Get detailed cache statistics
+    async getCacheStatistics() {
+        if (!this.backend) {
+            throw new Error("Backend not initialized. Call initBackend() first.");
+        }
+
+        try {
+            const stats = await this.backend.get_detailed_cache_stats();
+            return {
+                total_requests: convertBigIntToString(stats.total_requests),
+                cache_hits: convertBigIntToString(stats.cache_hits),
+                cache_misses: convertBigIntToString(stats.cache_misses),
+                avg_response_time_ms: convertBigIntToString(stats.avg_response_time_ms),
+                total_cache_size_bytes: convertBigIntToString(stats.total_cache_size_bytes),
+                cache_utilization_percent: convertBigIntToString(stats.cache_utilization_percent)
+            };
+        } catch (error) {
+            console.error('Get cache statistics failed:', error);
+            throw new Error(`Cache statistics retrieval failed: ${error.message}`);
+        }
+    }
+
+    // Get user tier information
+    async getUserTierInfo() {
+        if (!this.backend) {
+            throw new Error("Backend not initialized. Call initBackend() first.");
+        }
+
+        try {
+            const result = await this.backend.get_user_tier_info();
+            if (result.Ok) {
+                const tierInfo = result.Ok;
+                return {
+                    current_tier: tierInfo.current_tier,
+                    cache_limit_bytes: convertBigIntToString(tierInfo.cache_limit_bytes),
+                    cache_usage_bytes: convertBigIntToString(tierInfo.cache_usage_bytes),
+                    pinata_enabled: tierInfo.pinata_enabled,
+                    pinata_storage_limit_bytes: convertBigIntToString(tierInfo.pinata_storage_limit_bytes),
+                    available_upgrades: tierInfo.available_upgrades
+                };
+            } else {
+                throw new Error(result.Err || 'Failed to get tier info');
+            }
+        } catch (error) {
+            console.error('Get user tier info failed:', error);
+            throw new Error(`Tier info retrieval failed: ${error.message}`);
+        }
+    }
+
+    // Upgrade user tier
+    async upgradeTier(newTier) {
+        if (!this.backend) {
+            throw new Error("Backend not initialized. Call initBackend() first.");
+        }
+
+        try {
+            const result = await this.backend.upgrade_tier(newTier);
+            if (result.Ok) {
+                return result.Ok;
+            } else {
+                throw new Error(result.Err || 'Tier upgrade failed');
+            }
+        } catch (error) {
+            console.error('Tier upgrade failed:', error);
+            throw new Error(`Tier upgrade failed: ${error.message}`);
+        }
+    }
+
+    // Get available tiers
+    async getAvailableTiers() {
+        if (!this.backend) {
+            throw new Error("Backend not initialized. Call initBackend() first.");
+        }
+
+        try {
+            const tiers = await this.backend.get_available_tiers();
+            return tiers.map(tier => ({
+                tier: tier.tier,
+                name: tier.name,
+                cache_limit_mb: tier.cache_limit_mb,
+                pinata_storage_gb: tier.pinata_storage_gb,
+                pinata_enabled: tier.pinata_enabled,
+                price_cycles: convertBigIntToString(tier.price_cycles),
+                features: tier.features
+            }));
+        } catch (error) {
+            console.error('Get available tiers failed:', error);
+            throw new Error(`Available tiers retrieval failed: ${error.message}`);
+        }
+    }
+
+    // Clear cache
+    async clearCache() {
+        if (!this.backend) {
+            throw new Error("Backend not initialized. Call initBackend() first.");
+        }
+
+        try {
+            const result = await this.backend.clear_cache_with_result();
+            if (result.Ok) {
+                return result.Ok;
+            } else {
+                throw new Error(result.Err || 'Cache clear failed');
+            }
+        } catch (error) {
+            console.error('Clear cache failed:', error);
+            throw new Error(`Cache clear failed: ${error.message}`);
+        }
+    }
+
+    // Manual cache eviction
+    async evictFromCache(cid) {
+        if (!this.backend) {
+            throw new Error("Backend not initialized. Call initBackend() first.");
+        }
+
+        try {
+            const result = await this.backend.manual_cache_eviction(cid);
+            if (result.Ok) {
+                return result.Ok;
+            } else {
+                throw new Error(result.Err || 'Cache eviction failed');
+            }
+        } catch (error) {
+            console.error('Cache eviction failed:', error);
+            throw new Error(`Cache eviction failed: ${error.message}`);
+        }
+    }
 }
 
 // ===== CONVENIENCE FUNCTIONS (matching Rust library) =====

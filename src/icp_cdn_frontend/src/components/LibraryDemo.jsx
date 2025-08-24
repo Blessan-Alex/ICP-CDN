@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, FileText, Cloud, Zap, Shield, CheckCircle, AlertCircle, Loader, Crown, Info,
-  Database, Globe, Settings, User, DollarSign, Package, Calculator, Download, RefreshCw
+  Database, Globe, Settings, User, DollarSign, Package, Calculator, Download, RefreshCw,
+  BarChart3, List
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { createActor, canisterId } from '../canister_id_patch';
@@ -457,6 +458,117 @@ export default function LibraryDemo() {
     }
   };
 
+  // Test 9: Cache Statistics (Using actual library)
+  const testCacheStatistics = async () => {
+    if (!cdnClient) return;
+
+    setRunningTests(prev => new Set(prev).add('cacheStatistics'));
+    setTestResults(prev => ({ ...prev, cacheStatistics: { status: 'running', message: 'Testing cache statistics with CDN Client Library...' } }));
+
+    try {
+      console.log('Testing getCacheStatistics() with CDN Client Library...');
+      const stats = await cdnClient.getCacheStatistics();
+      
+      setTestResults(prev => ({ 
+        ...prev, 
+        cacheStatistics: { 
+          status: 'success', 
+          message: `Cache statistics retrieved using CDN Client Library! Hit rate: ${stats.cache_hits}/${stats.total_requests}`,
+          data: stats
+        } 
+      }));
+    } catch (error) {
+      console.error('Cache statistics test failed:', error);
+      setTestResults(prev => ({ 
+        ...prev, 
+        cacheStatistics: { 
+          status: 'error', 
+          message: `Cache statistics failed: ${error.message}` 
+        } 
+      }));
+    } finally {
+      setRunningTests(prev => {
+        const newSet = new Set(prev);
+        newSet.delete('cacheStatistics');
+        return newSet;
+      });
+    }
+  };
+
+  // Test 10: User Tier Info (Using actual library)
+  const testUserTierInfo = async () => {
+    if (!cdnClient) return;
+
+    setRunningTests(prev => new Set(prev).add('userTierInfo'));
+    setTestResults(prev => ({ ...prev, userTierInfo: { status: 'running', message: 'Testing user tier info with CDN Client Library...' } }));
+
+    try {
+      console.log('Testing getUserTierInfo() with CDN Client Library...');
+      const tierInfo = await cdnClient.getUserTierInfo();
+      
+      setTestResults(prev => ({ 
+        ...prev, 
+        userTierInfo: { 
+          status: 'success', 
+          message: `User tier info retrieved using CDN Client Library! Current tier: ${tierInfo.current_tier}`,
+          data: tierInfo
+        } 
+      }));
+    } catch (error) {
+      console.error('User tier info test failed:', error);
+      setTestResults(prev => ({ 
+        ...prev, 
+        userTierInfo: { 
+          status: 'error', 
+          message: `User tier info failed: ${error.message}` 
+        } 
+      }));
+    } finally {
+      setRunningTests(prev => {
+        const newSet = new Set(prev);
+        newSet.delete('userTierInfo');
+        return newSet;
+      });
+    }
+  };
+
+  // Test 11: Available Tiers (Using actual library)
+  const testAvailableTiers = async () => {
+    if (!cdnClient) return;
+
+    setRunningTests(prev => new Set(prev).add('availableTiers'));
+    setTestResults(prev => ({ ...prev, availableTiers: { status: 'running', message: 'Testing available tiers with CDN Client Library...' } }));
+
+    try {
+      console.log('Testing getAvailableTiers() with CDN Client Library...');
+      const tiers = await cdnClient.getAvailableTiers();
+      
+      setTestResults(prev => ({ 
+        ...prev, 
+        availableTiers: { 
+          status: 'success', 
+          message: `Available tiers retrieved using CDN Client Library! Found ${tiers.length} tiers`,
+          data: tiers
+        } 
+      }));
+    } catch (error) {
+      console.error('Available tiers test failed:', error);
+      setTestResults(prev => ({ 
+        ...prev, 
+        availableTiers: { 
+          status: 'error', 
+          message: `Available tiers failed: ${error.message}` 
+        } 
+      }));
+    } finally {
+      setRunningTests(prev => {
+        const newSet = new Set(prev);
+        newSet.delete('availableTiers');
+        return newSet;
+      });
+    }
+  };
+
   const getTestStatusIcon = (status) => {
     switch (status) {
       case 'success': return <CheckCircle className="w-5 h-5 text-green-500" />;
@@ -696,20 +808,65 @@ export default function LibraryDemo() {
                   Test getAssetWithFallback()
                 </motion.button>
 
-                <motion.button
-                  onClick={testCacheCheck}
-                  disabled={runningTests.has('cacheCheck') || !uploadedCid}
-                  className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-teal-500 to-teal-700 hover:from-teal-600 hover:to-teal-800 disabled:opacity-50 text-white rounded-lg transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                >
-                  {runningTests.has('cacheCheck') ? (
-                    <Loader className="w-4 h-4 animate-spin mr-2" />
-                  ) : (
-                    <Database className="w-4 h-4 mr-2" />
-                  )}
-                  Test isCached()
-                </motion.button>
+                                 <motion.button
+                   onClick={testCacheCheck}
+                   disabled={runningTests.has('cacheCheck') || !uploadedCid}
+                   className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-teal-500 to-teal-700 hover:from-teal-600 hover:to-teal-800 disabled:opacity-50 text-white rounded-lg transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500"
+                   whileHover={{ scale: 1.02 }}
+                   whileTap={{ scale: 0.98 }}
+                 >
+                   {runningTests.has('cacheCheck') ? (
+                     <Loader className="w-4 h-4 animate-spin mr-2" />
+                   ) : (
+                     <Database className="w-4 h-4 mr-2" />
+                   )}
+                   Test isCached()
+                 </motion.button>
+
+                 <motion.button
+                   onClick={testCacheStatistics}
+                   disabled={runningTests.has('cacheStatistics')}
+                   className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800 disabled:opacity-50 text-white rounded-lg transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                   whileHover={{ scale: 1.02 }}
+                   whileTap={{ scale: 0.98 }}
+                 >
+                   {runningTests.has('cacheStatistics') ? (
+                     <Loader className="w-4 h-4 animate-spin mr-2" />
+                   ) : (
+                     <BarChart3 className="w-4 h-4 mr-2" />
+                   )}
+                   Test Cache Statistics
+                 </motion.button>
+
+                 <motion.button
+                   onClick={testUserTierInfo}
+                   disabled={runningTests.has('userTierInfo')}
+                   className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 disabled:opacity-50 text-white rounded-lg transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+                   whileHover={{ scale: 1.02 }}
+                   whileTap={{ scale: 0.98 }}
+                 >
+                   {runningTests.has('userTierInfo') ? (
+                     <Loader className="w-4 h-4 animate-spin mr-2" />
+                   ) : (
+                     <Crown className="w-4 h-4 mr-2" />
+                   )}
+                   Test User Tier Info
+                 </motion.button>
+
+                 <motion.button
+                   onClick={testAvailableTiers}
+                   disabled={runningTests.has('availableTiers')}
+                   className="w-full flex items-center justify-center px-4 py-3 bg-gradient-to-r from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800 disabled:opacity-50 text-white rounded-lg transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                   whileHover={{ scale: 1.02 }}
+                   whileTap={{ scale: 0.98 }}
+                 >
+                   {runningTests.has('availableTiers') ? (
+                     <Loader className="w-4 h-4 animate-spin mr-2" />
+                   ) : (
+                     <List className="w-4 h-4 mr-2" />
+                   )}
+                   Test Available Tiers
+                 </motion.button>
 
                 {/* File Upload */}
                 <div className="space-y-2">
