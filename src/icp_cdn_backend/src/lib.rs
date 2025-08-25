@@ -1545,6 +1545,32 @@ fn clear_cache_with_result() -> Result<String, String> {
     Ok(format!("✅ Successfully cleared cache. Removed {} entries.", cleared_entries))
 }
 
+// Clear user's cache usage (reset to 0)
+#[ic_cdk::update]
+fn clear_user_cache() -> Result<String, String> {
+    let caller_principal = ic_cdk::api::caller();
+    
+    ACCOUNTS.with(|accounts| {
+        let mut accounts = accounts.borrow_mut();
+        if let Some(account) = accounts.get_mut(&caller_principal) {
+            let old_usage = account.cache_usage_bytes;
+            account.cache_usage_bytes = 0;
+            ic_cdk::print(format!("Cleared cache usage for principal {}: {} -> 0", caller_principal, old_usage));
+            Ok(format!("✅ Successfully cleared your cache usage. Previous usage: {} bytes", old_usage))
+        } else {
+            // Create account if it doesn't exist
+            accounts.insert(caller_principal, UserAccount {
+                user_principal: caller_principal,
+                cycles_balance: 0,
+                tier: UserTier::Free,
+                cache_usage_bytes: 0,
+                pinata_enabled: false,
+            });
+            Ok("✅ Created new account with 0 cache usage".to_string())
+        }
+    })
+}
+
 // Reset performance metrics
 #[ic_cdk::update]
 fn reset_performance_metrics() -> Result<String, String> {

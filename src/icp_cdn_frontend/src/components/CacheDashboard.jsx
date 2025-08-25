@@ -200,6 +200,19 @@ export default function CacheDashboard() {
       const result = await backend.clear_cache_with_result();
       
       if (result.Ok) {
+        // Also clear user's cache usage
+        console.log('Clearing user cache usage...');
+        try {
+          const userCacheResult = await backend.clear_user_cache();
+          if (userCacheResult.Ok) {
+            console.log('User cache usage cleared:', userCacheResult.Ok);
+          } else {
+            console.warn('Failed to clear user cache usage:', userCacheResult.Err);
+          }
+        } catch (userCacheError) {
+          console.warn('Error clearing user cache usage:', userCacheError);
+        }
+        
         // Reload cache stats
         await loadCacheStats();
         setSelectedCid(null);

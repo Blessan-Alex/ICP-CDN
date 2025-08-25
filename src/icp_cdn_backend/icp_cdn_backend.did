@@ -95,6 +95,7 @@ service : {
     "manual_cache_eviction": (text) -> (variant { Ok : text; Err : text });
     "clear_cache": () -> (nat64, nat64);
     "clear_cache_with_result": () -> (variant { Ok : text; Err : text });
+    "clear_user_cache": () -> (variant { Ok : text; Err : text });
     "reset_performance_metrics": () -> (variant { Ok : text; Err : text });
     
     "test_get_lru_stats": () -> (nat64, vec text) query;

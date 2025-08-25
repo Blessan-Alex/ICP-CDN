@@ -80,6 +80,13 @@ export default function EnhancedUpload() {
     }
   };
 
+  // Refresh tier information (for when cache is cleared)
+  const refreshTierInfo = async () => {
+    if (backend) {
+      await loadTierInfo(backend);
+    }
+  };
+
   // Load previously uploaded files
   const loadUploadedFiles = async (backendInstance = backend) => {
     if (!backendInstance) return;
@@ -466,25 +473,35 @@ export default function EnhancedUpload() {
         </ul>
       </div>
 
-      {/* Tier-specific Upload Warning */}
-      {userTierInfo && (
-        <div className={`mb-6 p-4 rounded-lg border ${
-          getUserTierName(userTierInfo.current_tier) === 'Free' 
-            ? 'bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-amber-500/20'
-            : 'bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/20'
-        }`}>
-          <div className="flex items-center gap-2 mb-2">
-            {getUserTierName(userTierInfo.current_tier) === 'Free' ? (
-              <AlertCircle className="w-5 h-5 text-amber-400" />
-            ) : (
-              <Crown className="w-5 h-5 text-green-400" />
-            )}
-            <span className={`font-semibold ${
-              getUserTierName(userTierInfo.current_tier) === 'Free' ? 'text-amber-400' : 'text-green-400'
+                {/* Tier-specific Upload Warning */}
+          {userTierInfo && (
+            <div className={`mb-6 p-4 rounded-lg border ${
+              getUserTierName(userTierInfo.current_tier) === 'Free' 
+                ? 'bg-gradient-to-r from-amber-500/10 to-orange-500/10 border-amber-500/20'
+                : 'bg-gradient-to-r from-green-500/10 to-emerald-500/10 border-green-500/20'
             }`}>
-              {getUserTierName(userTierInfo.current_tier)} Tier Upload Behavior:
-            </span>
-          </div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  {getUserTierName(userTierInfo.current_tier) === 'Free' ? (
+                    <AlertCircle className="w-5 h-5 text-amber-400" />
+                  ) : (
+                    <Crown className="w-5 h-5 text-green-400" />
+                  )}
+                  <span className={`font-semibold ${
+                    getUserTierName(userTierInfo.current_tier) === 'Free' ? 'text-amber-400' : 'text-green-400'
+                  }`}>
+                    {getUserTierName(userTierInfo.current_tier)} Tier Upload Behavior:
+                  </span>
+                </div>
+                <button
+                  onClick={refreshTierInfo}
+                  disabled={loadingTierInfo}
+                  className="p-1 text-neutral-400 hover:text-white transition-colors"
+                  title="Refresh tier information"
+                >
+                  <Loader className={`w-4 h-4 ${loadingTierInfo ? 'animate-spin' : ''}`} />
+                </button>
+              </div>
           
           {getUserTierName(userTierInfo.current_tier) === 'Free' ? (
             <div className="text-sm text-neutral-300 space-y-2">
@@ -493,8 +510,11 @@ export default function EnhancedUpload() {
                 <li>• Files uploaded directly to IPFS (no pinning)</li>
                 <li>• Content may become unavailable when cache evicts</li>
                 <li>• No persistent storage guarantee</li>
-                <li>• Limited to 20MB cache</li>
+                <li>• Limited to {formatBytes(userTierInfo.cache_limit_bytes)} cache</li>
               </ul>
+              
+
+              
               <div className="mt-3 p-2 bg-amber-500/10 rounded border border-amber-500/20">
                 <p className="text-amber-300 text-xs">
                   💡 <strong>Upgrade for better reliability:</strong> Paid tiers include persistent IPFS pinning, 
@@ -511,6 +531,8 @@ export default function EnhancedUpload() {
                 <li>• Enhanced storage limits ({formatBytes(userTierInfo.cache_limit_bytes)})</li>
                 <li>• Priority support and features</li>
               </ul>
+              
+
             </div>
           )}
         </div>
