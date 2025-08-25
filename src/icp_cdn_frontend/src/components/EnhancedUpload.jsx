@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, FileText, Cloud, Zap, Shield, CheckCircle, AlertCircle, Loader, Crown, Info } from 'lucide-react';
+import { Upload, FileText, Cloud, Zap, Shield, CheckCircle, AlertCircle, Loader, Crown, Info, Eye, X, Download, ExternalLink } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { createActor, canisterId } from '../canister_id_patch';
 import { HttpAgent } from '@dfinity/agent';
@@ -17,6 +17,9 @@ export default function EnhancedUpload() {
   const [loadingTierInfo, setLoadingTierInfo] = useState(false);
   const [uploadResults, setUploadResults] = useState(null);
   const [showResults, setShowResults] = useState(false);
+  const [viewingFile, setViewingFile] = useState(null);
+  const [fileViewerOpen, setFileViewerOpen] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
   const fileInputRef = useRef(null);
 
   // Initialize backend connection
@@ -41,8 +44,11 @@ export default function EnhancedUpload() {
           setBackend(backendInstance);
           console.log('Backend initialized successfully');
           
-          // Load user tier information
-          await loadTierInfo(backendInstance);
+          // Load user tier information and uploaded files
+          await Promise.all([
+            loadTierInfo(backendInstance),
+            loadUploadedFiles(backendInstance)
+          ]);
         } catch (error) {
           console.error('Failed to initialize backend:', error);
           setUploadStatus(prev => ({ ...prev, 'backend': `❌ Backend init failed: ${error.message}` }));
@@ -74,6 +80,33 @@ export default function EnhancedUpload() {
     }
   };
 
+  // Load previously uploaded files
+  const loadUploadedFiles = async (backendInstance = backend) => {
+    if (!backendInstance) return;
+    
+    try {
+      console.log('Loading previously uploaded files...');
+      const files = await backendInstance.list_ipfs_files();
+      
+      const formattedFiles = files.map(file => ({
+        name: file.name,
+        type: file.content_type,
+        size: Number(file.size),
+        cid: file.cid,
+        ipfsHash: file.cid, // Using CID as IPFS hash for now
+        url: `https://gateway.pinata.cloud/ipfs/${file.cid}`,
+        gatewayUrl: `https://gateway.pinata.cloud/ipfs/${file.cid}`,
+        uploadedAt: new Date(Number(file.uploaded_at) / 1000000).toISOString(), // Convert nanoseconds to milliseconds
+        resultMessage: `Previously uploaded file: ${file.name}`
+      }));
+      
+      setUploadedFiles(formattedFiles);
+      console.log('Uploaded files loaded:', formattedFiles.length);
+    } catch (error) {
+      console.error('Error loading uploaded files:', error);
+    }
+  };
+
   // Helper function to get tier name from enum object
   const getUserTierName = (tier) => {
     if (typeof tier === 'object' && tier !== null) {
@@ -102,6 +135,111 @@ export default function EnhancedUpload() {
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
     return `bafybeih${hashHex.substring(0, 44)}`; // IPFS CID format
+  };
+
+  // File viewing functions
+  const openFileViewer = (file) => {
+    setViewingFile(file);
+    setFileViewerOpen(true);
+  };
+
+  const closeFileViewer = () => {
+    setFileViewerOpen(false);
+    setViewingFile(null);
+  };
+
+  const getFileIcon = (fileType) => {
+    if (fileType.startsWith('image/')) return '🖼️';
+    if (fileType.startsWith('video/')) return '🎥';
+    if (fileType.startsWith('audio/')) return '🎵';
+    if (fileType.includes('pdf')) return '📄';
+    if (fileType.includes('text')) return '📝';
+    if (fileType.includes('zip') || fileType.includes('rar')) return '📦';
+    return '📁';
+  };
+
+  const canPreviewFile = (fileType) => {
+    return fileType.startsWith('image/') || 
+           fileType.startsWith('video/') || 
+           fileType.startsWith('audio/') || 
+           fileType.includes('text') ||
+           fileType.includes('pdf');
+  };
+
+  const renderFilePreview = (file) => {
+    if (!file.url) return null;
+
+    if (file.type.startsWith('image/')) {
+      return (
+        <img 
+          src={file.url} 
+          alt={file.name} 
+          className="max-w-full max-h-96 object-contain rounded-lg"
+          onError={(e) => {
+            e.target.style.display = 'none';
+            e.target.nextSibling.style.display = 'block';
+          }}
+        />
+      );
+    }
+
+    if (file.type.startsWith('video/')) {
+      return (
+        <video 
+          controls 
+          className="max-w-full max-h-96 rounded-lg"
+          onError={(e) => {
+            e.target.style.display = 'none';
+            e.target.nextSibling.style.display = 'block';
+          }}
+        >
+          <source src={file.url} type={file.type} />
+          Your browser does not support the video tag.
+        </video>
+      );
+    }
+
+    if (file.type.startsWith('audio/')) {
+      return (
+        <audio 
+          controls 
+          className="w-full"
+          onError={(e) => {
+            e.target.style.display = 'none';
+            e.target.nextSibling.style.display = 'block';
+          }}
+        >
+          <source src={file.url} type={file.type} />
+          Your browser does not support the audio tag.
+        </audio>
+      );
+    }
+
+    if (file.type.includes('text')) {
+      return (
+        <div className="bg-neutral-800 p-4 rounded-lg max-h-96 overflow-auto">
+          <pre className="text-sm text-neutral-300 whitespace-pre-wrap">
+            {file.content || 'Loading...'}
+          </pre>
+        </div>
+      );
+    }
+
+    return (
+      <div className="text-center py-8">
+        <div className="text-6xl mb-4">{getFileIcon(file.type)}</div>
+        <p className="text-neutral-400 mb-4">Preview not available for this file type</p>
+        <a 
+          href={file.url} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 px-4 py-2 rounded-lg transition-colors"
+        >
+          <ExternalLink className="w-4 h-4" />
+          Open in New Tab
+        </a>
+      </div>
+    );
   };
 
   // Enhanced upload to dCDN using canister HTTP calls to Pinata
@@ -176,6 +314,21 @@ export default function EnhancedUpload() {
         setUploadStatus(prev => ({ ...prev, [file.name]: '✅ Uploaded to cache via canister HTTP call!' }));
       }
       
+      const uploadedFile = {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        cid: cid,
+        ipfsHash: ipfsHash,
+        url: ipfsHash ? `https://gateway.pinata.cloud/ipfs/${ipfsHash}` : null,
+        gatewayUrl: ipfsHash ? `https://gateway.pinata.cloud/ipfs/${ipfsHash}` : null,
+        uploadedAt: new Date().toISOString(),
+        resultMessage: resultMessage
+      };
+
+      // Add to uploaded files list
+      setUploadedFiles(prev => [uploadedFile, ...prev]);
+
       return { 
         success: true, 
         cid: cid,
@@ -571,6 +724,163 @@ export default function EnhancedUpload() {
            >
              Clear Results
            </button>
+         </motion.div>
+       )}
+
+       {/* Uploaded Files Section */}
+       {uploadedFiles.length > 0 && (
+         <motion.div 
+           initial={{ opacity: 0, y: 20 }} 
+           animate={{ opacity: 1, y: 0 }}
+           className="mt-6 p-4 bg-gradient-to-r from-blue-500/10 to-indigo-500/10 rounded-lg border border-blue-500/20"
+         >
+           <div className="flex items-center justify-between mb-4">
+             <h3 className="text-lg font-semibold text-blue-400 flex items-center gap-2">
+               <FileText className="w-5 h-5" />
+               Recently Uploaded Files ({uploadedFiles.length})
+             </h3>
+           </div>
+           
+           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 max-h-80 overflow-y-auto">
+             {uploadedFiles.map((file, index) => (
+               <motion.div
+                 key={index}
+                 initial={{ opacity: 0, scale: 0.9 }}
+                 animate={{ opacity: 1, scale: 1 }}
+                 transition={{ delay: index * 0.1 }}
+                 className="p-3 bg-neutral-800/50 rounded-lg border border-neutral-700 hover:border-blue-500/50 transition-colors"
+               >
+                 <div className="flex items-start justify-between mb-2">
+                   <div className="flex items-center gap-2">
+                     <span className="text-2xl">{getFileIcon(file.type)}</span>
+                     <div className="min-w-0 flex-1">
+                       <p className="font-medium text-white text-sm truncate" title={file.name}>
+                         {file.name}
+                       </p>
+                       <p className="text-xs text-neutral-400">
+                         {formatBytes(file.size)} • {new Date(file.uploadedAt).toLocaleDateString()}
+                       </p>
+                     </div>
+                   </div>
+                 </div>
+                 
+                 <div className="flex items-center gap-2">
+                   {canPreviewFile(file.type) && file.url && (
+                     <button
+                       onClick={() => openFileViewer(file)}
+                       className="flex items-center gap-1 text-xs bg-blue-500 hover:bg-blue-600 px-2 py-1 rounded transition-colors"
+                       title="View file"
+                     >
+                       <Eye className="w-3 h-3" />
+                       View
+                     </button>
+                   )}
+                   
+                   {file.url && (
+                     <a
+                       href={file.url}
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       className="flex items-center gap-1 text-xs bg-green-500 hover:bg-green-600 px-2 py-1 rounded transition-colors"
+                       title="Open in new tab"
+                     >
+                       <ExternalLink className="w-3 h-3" />
+                       Open
+                     </a>
+                   )}
+                   
+                   {file.url && (
+                     <a
+                       href={file.url}
+                       download={file.name}
+                       className="flex items-center gap-1 text-xs bg-orange-500 hover:bg-orange-600 px-2 py-1 rounded transition-colors"
+                       title="Download file"
+                     >
+                       <Download className="w-3 h-3" />
+                       Download
+                     </a>
+                   )}
+                 </div>
+                 
+                 {file.ipfsHash && (
+                   <div className="mt-2 p-2 bg-neutral-900/50 rounded text-xs">
+                     <p className="text-neutral-400 mb-1">IPFS Hash:</p>
+                     <p className="text-blue-400 font-mono break-all">{file.ipfsHash}</p>
+                   </div>
+                 )}
+               </motion.div>
+             ))}
+           </div>
+         </motion.div>
+       )}
+
+       {/* File Viewer Modal */}
+       {fileViewerOpen && viewingFile && (
+         <motion.div
+           initial={{ opacity: 0 }}
+           animate={{ opacity: 1 }}
+           exit={{ opacity: 0 }}
+           className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+           onClick={closeFileViewer}
+         >
+           <motion.div
+             initial={{ scale: 0.9, opacity: 0 }}
+             animate={{ scale: 1, opacity: 1 }}
+             exit={{ scale: 0.9, opacity: 0 }}
+             className="bg-neutral-900 rounded-lg shadow-2xl max-w-4xl max-h-[90vh] w-full overflow-hidden"
+             onClick={(e) => e.stopPropagation()}
+           >
+             {/* Header */}
+             <div className="flex items-center justify-between p-4 border-b border-neutral-700">
+               <div className="flex items-center gap-3">
+                 <span className="text-2xl">{getFileIcon(viewingFile.type)}</span>
+                 <div>
+                   <h3 className="text-lg font-semibold text-white">{viewingFile.name}</h3>
+                   <p className="text-sm text-neutral-400">
+                     {formatBytes(viewingFile.size)} • {new Date(viewingFile.uploadedAt).toLocaleString()}
+                   </p>
+                 </div>
+               </div>
+               
+               <div className="flex items-center gap-2">
+                 {viewingFile.url && (
+                   <a
+                     href={viewingFile.url}
+                     target="_blank"
+                     rel="noopener noreferrer"
+                     className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded transition-colors"
+                     title="Open in new tab"
+                   >
+                     <ExternalLink className="w-5 h-5" />
+                   </a>
+                 )}
+                 
+                 {viewingFile.url && (
+                   <a
+                     href={viewingFile.url}
+                     download={viewingFile.name}
+                     className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded transition-colors"
+                     title="Download file"
+                   >
+                     <Download className="w-5 h-5" />
+                   </a>
+                 )}
+                 
+                 <button
+                   onClick={closeFileViewer}
+                   className="p-2 text-neutral-400 hover:text-white hover:bg-neutral-800 rounded transition-colors"
+                   title="Close"
+                 >
+                   <X className="w-5 h-5" />
+                 </button>
+               </div>
+             </div>
+             
+             {/* Content */}
+             <div className="p-6 overflow-auto max-h-[calc(90vh-80px)]">
+               {renderFilePreview(viewingFile)}
+             </div>
+           </motion.div>
          </motion.div>
        )}
 
