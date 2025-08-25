@@ -2396,4 +2396,304 @@ fn get_image_dimensions(cid: String) -> Result<(u32, u32), String> {
     Ok((width, height))
 }
 
+// ===== CANISTER-TO-CANISTER COMMUNICATION FUNCTIONS =====
+
+/// Canister-to-canister upload function
+/// Allows other canisters to upload content directly with automatic cycles payment
+#[ic_cdk::update]
+async fn canister_upload(
+    caller: Principal,
+    content: Vec<u8>,
+    content_type: String,
+    cycles_payment: u128
+) -> Result<String, String> {
+    // Validate input
+    if content.is_empty() {
+        return Err("Content cannot be empty".to_string());
+    }
+    
+    if content_type.is_empty() {
+        return Err("Content type cannot be empty".to_string());
+    }
+    
+    if cycles_payment == 0 {
+        return Err("Cycles payment must be greater than 0".to_string());
+    }
+    
+    // Accept the cycles payment from the calling canister
+    let cycles_available = ic_cdk::api::call::msg_cycles_available128();
+    let cycles_accepted = ic_cdk::api::call::msg_cycles_accept128(cycles_payment.min(cycles_available));
+    
+    ic_cdk::print(format!("Canister upload: Accepted {} cycles from caller {}", cycles_accepted, caller));
+    
+    // Generate a CID for the content
+    let cid = generate_cid_for_content(&content, &content_type);
+    
+    // Get or create user account for the calling canister
+    let user_account = ACCOUNTS.with(|accounts| {
+        let mut accounts = accounts.borrow_mut();
+        let user_account = accounts.entry(caller).or_insert_with(|| UserAccount {
+            user_principal: caller,
+            cycles_balance: 0,
+            tier: UserTier::Free,
+            cache_usage_bytes: 0,
+            pinata_enabled: false,
+        });
+        
+        // Add the accepted cycles to the canister's balance
+        user_account.cycles_balance = user_account.cycles_balance.saturating_add(cycles_accepted);
+        
+        user_account.clone()
+    });
+    
+    // Create a cache entry for the uploaded content
+    let cache_entry = CacheEntry {
+        cid: cid.clone(),
+        content_type: content_type.clone(),
+        size: content.len() as u64,
+        last_accessed_ts: ic_cdk::api::time(),
+        bytes: content.clone(),
+    };
+    
+    // Store in cache
+    if let Err(e) = put_cache_entry(cid.clone(), cache_entry) {
+        return Err(format!("Failed to cache uploaded content: {}", e));
+    }
+    
+    // For paid tiers, also upload to Pinata for persistence
+    if user_account.pinata_enabled {
+        match upload_to_pinata(&content, &cid, &content_type, true).await {
+            Ok(ipfs_hash) => {
+                Ok(format!("Content uploaded and pinned to IPFS. CID: {}, IPFS Hash: {}", cid, ipfs_hash))
+            }
+            Err(e) => {
+                Ok(format!("Content uploaded to cache. CID: {} (Pinata upload failed: {})", cid, e))
+            }
+        }
+    } else {
+        Ok(format!("Content uploaded to cache. CID: {} (Pinata not enabled for this tier)", cid))
+    }
+}
+
+/// Canister-to-canister content retrieval function
+#[ic_cdk::query]
+fn canister_get_content(caller: Principal, cid: String) -> Result<Vec<u8>, String> {
+    if cid.is_empty() {
+        return Err("CID cannot be empty".to_string());
+    }
+    
+    // Check if content is in cache
+    if let Some(cache_entry) = get_cache_entry(&cid) {
+        // Update last accessed timestamp
+        let mut updated_entry = cache_entry.clone();
+        updated_entry.last_accessed_ts = ic_cdk::api::time();
+        let _ = put_cache_entry(cid.clone(), updated_entry);
+        
+        return Ok(cache_entry.bytes);
+    }
+    
+    // Content not found in cache
+    Err(format!("Content not found: {}", cid))
+}
+
+/// Canister-to-canister content retrieval with IPFS fallback
+#[ic_cdk::update]
+async fn canister_get_content_with_fallback(caller: Principal, cid: String) -> Result<Vec<u8>, String> {
+    if cid.is_empty() {
+        return Err("CID cannot be empty".to_string());
+    }
+    
+    // First try to get from cache
+    if let Some(cache_entry) = get_cache_entry(&cid) {
+        // Update last accessed timestamp
+        let mut updated_entry = cache_entry.clone();
+        updated_entry.last_accessed_ts = ic_cdk::api::time();
+        let _ = put_cache_entry(cid.clone(), updated_entry);
+        
+        return Ok(cache_entry.bytes);
+    }
+    
+    // If not in cache, try to fetch from IPFS
+    match fetch_from_ipfs(cid.clone()).await {
+        Ok(content) => {
+            // Cache the fetched content for future requests
+            let cache_entry = CacheEntry {
+                cid: cid.clone(),
+                content_type: "application/octet-stream".to_string(), // Default content type for IPFS content
+                size: content.len() as u64,
+                last_accessed_ts: ic_cdk::api::time(),
+                bytes: content.clone(),
+            };
+            
+            let _ = put_cache_entry(cid.clone(), cache_entry);
+            Ok(content)
+        }
+        Err(e) => Err(format!("Content not found in cache or IPFS: {}", e))
+    }
+}
+
+/// Canister-to-canister bulk upload function
+/// Allows other canisters to upload multiple files at once
+#[ic_cdk::update]
+async fn canister_bulk_upload(
+    caller: Principal,
+    files: Vec<(Vec<u8>, String)>,
+    cycles_payment: u128
+) -> Result<Vec<String>, String> {
+    if files.is_empty() {
+        return Err("Files list cannot be empty".to_string());
+    }
+    
+    if cycles_payment == 0 {
+        return Err("Cycles payment must be greater than 0".to_string());
+    }
+    
+    // Accept the cycles payment from the calling canister
+    let cycles_available = ic_cdk::api::call::msg_cycles_available128();
+    let cycles_accepted = ic_cdk::api::call::msg_cycles_accept128(cycles_payment.min(cycles_available));
+    
+    ic_cdk::print(format!("Canister bulk upload: Accepted {} cycles from caller {} for {} files", 
+                          cycles_accepted, caller, files.len()));
+    
+    // Get or create user account for the calling canister
+    let user_account = ACCOUNTS.with(|accounts| {
+        let mut accounts = accounts.borrow_mut();
+        let user_account = accounts.entry(caller).or_insert_with(|| UserAccount {
+            user_principal: caller,
+            cycles_balance: 0,
+            tier: UserTier::Free,
+            cache_usage_bytes: 0,
+            pinata_enabled: false,
+        });
+        
+        // Add the accepted cycles to the canister's balance
+        user_account.cycles_balance = user_account.cycles_balance.saturating_add(cycles_accepted);
+        
+        user_account.clone()
+    });
+    
+    let mut uploaded_cids = Vec::new();
+    
+    // Process each file
+    for (content, content_type) in files {
+        if content.is_empty() {
+            return Err("File content cannot be empty".to_string());
+        }
+        
+        if content_type.is_empty() {
+            return Err("Content type cannot be empty".to_string());
+        }
+        
+        // Generate a CID for the content
+        let cid = generate_cid_for_content(&content, &content_type);
+        
+        // Create a cache entry for the uploaded content
+        let cache_entry = CacheEntry {
+            cid: cid.clone(),
+            content_type: content_type.clone(),
+            size: content.len() as u64,
+            last_accessed_ts: ic_cdk::api::time(),
+            bytes: content.clone(),
+        };
+        
+        // Store in cache
+        if let Err(e) = put_cache_entry(cid.clone(), cache_entry) {
+            return Err(format!("Failed to cache uploaded content: {}", e));
+        }
+        
+        // For paid tiers, also upload to Pinata for persistence
+        if user_account.pinata_enabled {
+            let _ = upload_to_pinata(&content, &cid, &content_type, true).await;
+        }
+        
+        uploaded_cids.push(cid);
+    }
+    
+    Ok(uploaded_cids)
+}
+
+/// Canister-to-canister cost estimation function
+#[ic_cdk::query]
+fn canister_estimate_upload_cost(file_size_bytes: u64) -> u128 {
+    estimate_upload_cost(file_size_bytes)
+}
+
+/// Canister-to-canister storage cost estimation function
+#[ic_cdk::query]
+fn canister_estimate_storage_cost(file_size_bytes: u64, hours: u64) -> u128 {
+    estimate_storage_cost(file_size_bytes, hours)
+}
+
+/// Canister-to-canister account information function
+#[ic_cdk::query]
+fn canister_get_account_info(caller: Principal) -> UserAccount {
+    ACCOUNTS.with(|accounts| {
+        let accounts = accounts.borrow();
+        accounts.get(&caller).cloned().unwrap_or_else(|| UserAccount {
+            user_principal: caller,
+            cycles_balance: 0,
+            tier: UserTier::Free,
+            cache_usage_bytes: 0,
+            pinata_enabled: false,
+        })
+    })
+}
+
+/// Canister-to-canister cycles deposit function
+#[ic_cdk::update]
+async fn canister_deposit_cycles(caller: Principal, cycles_amount: u128) -> UserAccount {
+    if cycles_amount == 0 {
+        return canister_get_account_info(caller);
+    }
+    
+    // Accept the cycles payment from the calling canister
+    let cycles_available = ic_cdk::api::call::msg_cycles_available128();
+    let cycles_accepted = ic_cdk::api::call::msg_cycles_accept128(cycles_amount.min(cycles_available));
+    
+    ic_cdk::print(format!("Canister deposit: Accepted {} cycles from caller {}", cycles_accepted, caller));
+    
+    ACCOUNTS.with(|accounts| {
+        let mut accounts = accounts.borrow_mut();
+        let user_account = accounts.entry(caller).or_insert_with(|| UserAccount {
+            user_principal: caller,
+            cycles_balance: 0,
+            tier: UserTier::Free,
+            cache_usage_bytes: 0,
+            pinata_enabled: false,
+        });
+        
+        // Add the accepted cycles to the canister's balance
+        user_account.cycles_balance = user_account.cycles_balance.saturating_add(cycles_accepted);
+        
+        user_account.clone()
+    })
+}
+
+// ===== HELPER FUNCTIONS =====
+
+/// Generate a unique CID for content
+fn generate_cid_for_content(content: &[u8], content_type: &str) -> String {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    
+    let mut hasher = DefaultHasher::new();
+    content.hash(&mut hasher);
+    content_type.hash(&mut hasher);
+    
+    // Try to get time from ic_cdk, fallback to system time for tests
+    let timestamp = match std::panic::catch_unwind(|| ic_cdk::api::time()) {
+        Ok(time) => time,
+        Err(_) => {
+            // Fallback for test environments
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_nanos() as u64
+        }
+    };
+    timestamp.hash(&mut hasher);
+    
+    format!("Qm{:x}", hasher.finish())
+}
+
 

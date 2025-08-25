@@ -129,4 +129,14 @@ service : {
     
     // HTTP Transform Function
     "transform": (record { context : blob; response : record { status : nat; body : blob; headers : vec record { value : text; name : text }; }; }) -> (record { status : nat; body : blob; headers : vec record { value : text; name : text }; }) query;
+    
+    // Canister-to-Canister Communication Functions
+    "canister_upload": (principal, vec nat8, text, nat) -> (variant { Ok : text; Err : text });
+    "canister_get_content": (principal, text) -> (variant { Ok : vec nat8; Err : text }) query;
+    "canister_get_content_with_fallback": (principal, text) -> (variant { Ok : vec nat8; Err : text });
+    "canister_bulk_upload": (principal, vec record { 0 : vec nat8; 1 : text }, nat) -> (variant { Ok : vec text; Err : text });
+    "canister_estimate_upload_cost": (nat64) -> (nat) query;
+    "canister_estimate_storage_cost": (nat64, nat64) -> (nat) query;
+    "canister_get_account_info": (principal) -> (record { user_principal : principal; cycles_balance : nat; tier : UserTier; cache_usage_bytes : nat64; pinata_enabled : bool; }) query;
+    "canister_deposit_cycles": (principal, nat) -> (record { user_principal : principal; cycles_balance : nat; tier : UserTier; cache_usage_bytes : nat64; pinata_enabled : bool; });
 }

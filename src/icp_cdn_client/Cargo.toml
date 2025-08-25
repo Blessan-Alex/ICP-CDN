@@ -9,6 +9,13 @@ ic-cdk = "0.13"
 ic-cdk-macros = "0.8"
 serde = { version = "1.0", features = ["derive"] }
 
+[dev-dependencies]
+tokio = { version = "1.0", features = ["full"] }
+
 [lib]
 name = "icp_cdn_client"
 crate-type = ["cdylib", "lib"]
+
+[[example]]
+name = "canister_usage"
+path = "examples/canister_usage.rs"

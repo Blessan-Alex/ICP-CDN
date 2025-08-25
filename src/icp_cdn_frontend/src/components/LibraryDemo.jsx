@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { 
   Upload, FileText, Cloud, Zap, Shield, CheckCircle, AlertCircle, Loader, Crown, Info,
   Database, Globe, Settings, User, DollarSign, Package, Calculator, Download, RefreshCw,
-  BarChart3, List
+  BarChart3, List, Users
 } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { createActor, canisterId } from '../canister_id_patch';
@@ -935,10 +935,21 @@ export default function LibraryDemo() {
             transition={{ duration: 0.6, delay: 0.8 }}
             className="bg-white/10 dark:bg-neutral-900/40 backdrop-blur-xl rounded-2xl p-8 border border-white/30 dark:border-neutral-700 shadow-xl"
           >
-            <h3 className="text-2xl font-semibold mb-6 flex items-center gap-2">
-              <Info className="w-6 h-6 text-orange-500" />
-              CDN Client Library Information
-            </h3>
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-2xl font-semibold flex items-center gap-2">
+                <Info className="w-6 h-6 text-orange-500" />
+                CDN Client Library Information
+              </h3>
+              <motion.button
+                onClick={() => window.location.href = '/canister-demo'}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-purple-700 hover:from-purple-600 hover:to-purple-800 text-white rounded-lg transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                <Users className="w-4 h-4" />
+                Test Canister-to-Canister
+              </motion.button>
+            </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm">
               <div className="p-4 bg-gradient-to-r from-orange-500/10 to-orange-800/10 rounded-lg border border-orange-500/20">

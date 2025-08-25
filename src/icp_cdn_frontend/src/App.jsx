@@ -13,6 +13,7 @@ import Tiers from "./components/Tiers";
 import CyclesBilling from "./components/CyclesBilling";
 import TestInterface from "./components/TestInterface";
 import LibraryDemo from "./components/LibraryDemo";
+import CanisterToCanisterDemo from "./components/CanisterToCanisterDemo";
 import { AuthProvider } from "./AuthContext";
 import { BrowserRouter as Router, Routes, Route, Link } from "react-router-dom";
 
@@ -53,6 +54,7 @@ function App() {
           <Route path="/billing" element={<CyclesBilling />} />
           <Route path="/tests" element={<TestInterface />} />
           <Route path="/library-demo" element={<LibraryDemo />} />
+          <Route path="/canister-demo" element={<CanisterToCanisterDemo />} />
         </Routes>
       </Router>
     </AuthProvider>

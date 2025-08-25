@@ -27,6 +27,7 @@ export const enhancedNavItems = [
   { label: "Billing", href: "/billing", type: "page" },
   { label: "Tests", href: "/tests", type: "page" },
   { label: "Library Demo", href: "/library-demo", type: "page" },
+  { label: "Canister Demo", href: "/canister-demo", type: "page" },
 ];
 
 export const features = [

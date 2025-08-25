@@ -1,5 +1,5 @@
-import { Menu, X, Sun, Moon } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Menu, X, Sun, Moon, ChevronLeft, ChevronRight } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/logo.png";
 import { navItems, dashboardNavItem, enhancedNavItems } from "../constants";
@@ -13,12 +13,42 @@ const Navbar = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [scrolled, setScrolled] = useState(false);
+  const [showLeftArrow, setShowLeftArrow] = useState(false);
+  const [showRightArrow, setShowRightArrow] = useState(false);
+  const scrollContainerRef = useRef(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", onScroll);
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
+
+  // Check scroll position for arrow visibility
+  useEffect(() => {
+    const checkScrollPosition = () => {
+      if (scrollContainerRef.current) {
+        const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
+        setShowLeftArrow(scrollLeft > 0);
+        setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 1);
+      }
+    };
+
+    checkScrollPosition();
+    window.addEventListener('resize', checkScrollPosition);
+    return () => window.removeEventListener('resize', checkScrollPosition);
+  }, [isLoggedIn]);
+
+  const scrollLeft = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: -200, behavior: 'smooth' });
+    }
+  };
+
+  const scrollRight = () => {
+    if (scrollContainerRef.current) {
+      scrollContainerRef.current.scrollBy({ left: 200, behavior: 'smooth' });
+    }
+  };
 
   const toggleNavbar = () => {
     setMobileDrawerOpen(!mobileDrawerOpen);
@@ -84,6 +114,7 @@ const Navbar = () => {
             <img src={logo} alt="Logo" className="h-20 w-20 rounded-full animate-spin-custom" />
             <span className="text-2xl sm:text-3xl font-bold tracking-tight ml-2">CanisterDrop</span>
           </div>
+          
           {/* Desktop Navigation */}
           <div className="hidden lg:flex items-center space-x-8">
             <div className="flex items-center space-x-8">
@@ -111,22 +142,69 @@ const Navbar = () => {
             {isLoggedIn && (
               <>
                 <div className="w-px h-6 bg-neutral-600"></div>
-                <div className="flex items-center space-x-6">
-                  {enhancedNavItems.map((item, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleNavClick(item.href, item.type)}
-                      className="transition-colors duration-200 cursor-pointer relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 hover:text-orange-500"
-                      aria-label={item.label}
-                      tabIndex={0}
-                    >
-                      {item.label}
-                      <span className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 group-hover:w-full h-0.5 bg-orange-500 transition-all duration-300" />
-                    </button>
-                  ))}
+                <div className="relative flex items-center">
+                  {/* Left Arrow */}
+                  <AnimatePresence>
+                    {showLeftArrow && (
+                      <motion.button
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        onClick={scrollLeft}
+                        className="absolute left-0 z-10 p-1 rounded-full bg-neutral-800/80 hover:bg-neutral-700/80 text-white transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                        title="Scroll left"
+                      >
+                        <ChevronLeft className="w-4 h-4" />
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
+
+                  {/* Scrollable Container */}
+                  <div 
+                    ref={scrollContainerRef}
+                    className="flex items-center space-x-6 overflow-x-auto scrollbar-hide px-6 max-w-md"
+                    style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+                    onScroll={() => {
+                      if (scrollContainerRef.current) {
+                        const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
+                        setShowLeftArrow(scrollLeft > 0);
+                        setShowRightArrow(scrollLeft < scrollWidth - clientWidth - 1);
+                      }
+                    }}
+                  >
+                    {enhancedNavItems.map((item, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleNavClick(item.href, item.type)}
+                        className="flex-shrink-0 transition-colors duration-200 cursor-pointer relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 hover:text-orange-500 whitespace-nowrap"
+                        aria-label={item.label}
+                        tabIndex={0}
+                      >
+                        {item.label}
+                        <span className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 group-hover:w-full h-0.5 bg-orange-500 transition-all duration-300" />
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Right Arrow */}
+                  <AnimatePresence>
+                    {showRightArrow && (
+                      <motion.button
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        onClick={scrollRight}
+                        className="absolute right-0 z-10 p-1 rounded-full bg-neutral-800/80 hover:bg-neutral-700/80 text-white transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                        title="Scroll right"
+                      >
+                        <ChevronRight className="w-4 h-4" />
+                      </motion.button>
+                    )}
+                  </AnimatePresence>
                 </div>
               </>
             )}
+            
             <div className="w-px h-6 bg-neutral-600"></div>
             <button
               onClick={() => handleNavClick(dashboardNavItem.href, dashboardNavItem.type)}
@@ -149,6 +227,7 @@ const Navbar = () => {
               {isLoggedIn ? "Logout" : "Login"}
             </button>
           </div>
+          
           {/* Mobile Menu Button */}
           <div className="lg:hidden">
             <motion.button
@@ -184,6 +263,7 @@ const Navbar = () => {
             </motion.button>
           </div>
         </div>
+        
         {/* Mobile Navigation */}
         <AnimatePresence>
           {mobileDrawerOpen && (

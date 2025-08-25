@@ -196,3 +196,10 @@ async fn example_get_image(cid: String) -> Result<Vec<u8>, String> {
     
     openchat_cdn.get_chat_image(cid).await
 }
+
+// Main function for the example
+fn main() {
+    println!("CDN Canister Integration Example");
+    println!("This example shows how other canisters can integrate with the dCDN");
+    println!("To use this in a real canister, implement the integration functions above");
+}

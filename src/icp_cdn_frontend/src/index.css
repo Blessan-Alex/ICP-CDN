@@ -4,6 +4,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Hide scrollbars for webkit browsers */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbars for Firefox */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
 :root {
   font-family: "Poppins", sans-serif;
   color-scheme: dark;
