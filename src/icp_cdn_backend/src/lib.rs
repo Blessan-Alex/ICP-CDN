@@ -2348,6 +2348,42 @@ fn get_content_with_resize(cid: String, width: Option<u32>) -> Result<Vec<u8>, S
     }
 }
 
+// Get content from cache or IPFS
+#[ic_cdk::update]
+async fn get_content(cid: String) -> Result<Vec<u8>, String> {
+    if cid.is_empty() {
+        return Err("CID cannot be empty".to_string());
+    }
+    
+    // First try to get from cache
+    if let Some(cache_entry) = get_cache_entry(&cid) {
+        // Update last accessed timestamp
+        let mut updated_entry = cache_entry.clone();
+        updated_entry.last_accessed_ts = ic_cdk::api::time();
+        let _ = put_cache_entry(cid.clone(), updated_entry);
+        
+        return Ok(cache_entry.bytes);
+    }
+    
+    // If not in cache, try to fetch from IPFS
+    match fetch_from_ipfs(cid.clone()).await {
+        Ok(content) => {
+            // Cache the fetched content for future requests
+            let cache_entry = CacheEntry {
+                cid: cid.clone(),
+                content_type: "application/octet-stream".to_string(), // Default content type for IPFS content
+                size: content.len() as u64,
+                last_accessed_ts: ic_cdk::api::time(),
+                bytes: content.clone(),
+            };
+            
+            let _ = put_cache_entry(cid.clone(), cache_entry);
+            Ok(content)
+        }
+        Err(e) => Err(format!("Content not found in cache or IPFS: {}", e))
+    }
+}
+
 // List all cached images for the resize interface
 #[ic_cdk::query]
 fn list_cached_images() -> Vec<CachedImageInfo> {
