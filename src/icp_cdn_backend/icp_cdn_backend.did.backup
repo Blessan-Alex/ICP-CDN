@@ -108,7 +108,6 @@ service : {
     
     // Upload and Pinning Functions
     "upload_content": (text, text, vec nat8) -> (variant { Ok : text; Err : text });
-    "upload_content_with_canister_pinata": (text, text, vec nat8, text) -> (variant { Ok : text; Err : text });
     "test_upload_and_pinning_flow": (text, text, vec nat8) -> (variant { Ok : text; Err : text });
     "test_pinata_pinning": (text) -> (variant { Ok : text; Err : text });
     

@@ -104,7 +104,7 @@ export default function EnhancedUpload() {
     return `bafybeih${hashHex.substring(0, 44)}`; // IPFS CID format
   };
 
-  // Enhanced upload to dCDN using working Pinata backend server
+  // Enhanced upload to dCDN using canister HTTP calls to Pinata
   const uploadToDcdn = async (file) => {
     try {
       setUploadStatus(prev => ({ ...prev, [file.name]: 'Generating CID...' }));
@@ -112,86 +112,76 @@ export default function EnhancedUpload() {
       // Generate CID for the file
       const cid = await generateCID(file);
       
-      setUploadStatus(prev => ({ ...prev, [file.name]: 'Uploading to Pinata...' }));
+      setUploadStatus(prev => ({ ...prev, [file.name]: 'Reading file content...' }));
+      setUploadProgress(prev => ({ ...prev, [file.name]: 25 }));
+
+      // Read file content for upload
+      const reader = new FileReader();
+      const fileBytes = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(new Uint8Array(reader.result));
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
+      });
+
+      setUploadStatus(prev => ({ ...prev, [file.name]: 'Uploading via canister HTTP call...' }));
       setUploadProgress(prev => ({ ...prev, [file.name]: 50 }));
 
-      // Upload to Pinata backend server (which works perfectly)
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const response = await fetch('http://localhost:8787/upload', {
-        method: 'POST',
-        body: formData
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Pinata upload failed: ${response.status}`);
-      }
-      
-      const pinataResult = await response.json();
-      
-      if (!pinataResult.success) {
-        throw new Error(pinataResult.error || 'Pinata upload failed');
-      }
-      
-      setUploadStatus(prev => ({ ...prev, [file.name]: 'Storing in dCDN cache...' }));
-      setUploadProgress(prev => ({ ...prev, [file.name]: 75 }));
-
-      // Check file size for cache limits (20MB)
-      const MAX_CACHE_SIZE = 20 * 1024 * 1024; // 20MB
-      let cacheResult = null;
-      
-      if (file.size > MAX_CACHE_SIZE) {
-        setUploadStatus(prev => ({ ...prev, [file.name]: '⚠️ File too large for cache (>20MB), storing metadata only' }));
-        // Skip caching for large files, only store metadata
-      } else {
-        // Read file content for caching
-        const reader = new FileReader();
-        const fileBytes = await new Promise((resolve, reject) => {
-          reader.onload = () => resolve(new Uint8Array(reader.result));
-          reader.onerror = reject;
-          reader.readAsArrayBuffer(file);
-        });
-
-        // Store file content in dCDN cache using direct cache function (no HTTP outcalls)
-        cacheResult = await backend.test_create_cache_entry(
-          cid, // Use the generated CID
-          file.type,
-          BigInt(fileBytes.length),
-          Array.from(fileBytes)
-        );
-
-        if (!cacheResult.Ok) {
-          throw new Error(cacheResult.Err || 'Failed to cache file content in dCDN');
-        }
-      }
-
-      // Also store metadata for file management
-      const metadataResult = await backend.add_ipfs_file(
-        file.name,
-        pinataResult.ipfsHash,
-        BigInt(pinataResult.size),
-        pinataResult.contentType
+      // Upload using the new canister HTTP call function
+      const uploadResult = await backend.upload_content_with_canister_pinata(
+        cid,
+        file.type,
+        Array.from(fileBytes),
+        file.name
       );
 
-      if (!metadataResult.Ok) {
-        throw new Error(metadataResult.Err || 'Failed to store metadata in dCDN');
+      if (!uploadResult.Ok) {
+        throw new Error(uploadResult.Err || 'Upload via canister HTTP call failed');
+      }
+
+      setUploadStatus(prev => ({ ...prev, [file.name]: 'Processing upload result...' }));
+      setUploadProgress(prev => ({ ...prev, [file.name]: 75 }));
+
+      // Parse the upload result to extract IPFS hash
+      const resultMessage = uploadResult.Ok;
+      let ipfsHash = null;
+      
+      // Try to extract IPFS hash from the result message
+      const ipfsHashMatch = resultMessage.match(/IPFS Hash: ([A-Za-z0-9]+)/);
+      if (ipfsHashMatch) {
+        ipfsHash = ipfsHashMatch[1];
+      }
+
+      // Store metadata for file management (if we have an IPFS hash)
+      if (ipfsHash) {
+        const metadataResult = await backend.add_ipfs_file(
+          file.name,
+          ipfsHash,
+          BigInt(fileBytes.length),
+          file.type
+        );
+
+        if (!metadataResult.Ok) {
+          console.warn('Failed to store metadata:', metadataResult.Err);
+        }
       }
 
       setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
       
-      // Update status based on whether file was cached
-      if (file.size > MAX_CACHE_SIZE) {
-        setUploadStatus(prev => ({ ...prev, [file.name]: '✅ Uploaded to Pinata (metadata only - file too large for cache)' }));
+      // Update status based on the result
+      if (resultMessage.includes('pinned to IPFS')) {
+        setUploadStatus(prev => ({ ...prev, [file.name]: '✅ Uploaded and pinned to IPFS via canister HTTP call!' }));
+      } else if (resultMessage.includes('no pinning')) {
+        setUploadStatus(prev => ({ ...prev, [file.name]: '✅ Uploaded to IPFS (no pinning - free tier) via canister HTTP call!' }));
       } else {
-        setUploadStatus(prev => ({ ...prev, [file.name]: '✅ Uploaded to Pinata and cached in dCDN!' }));
+        setUploadStatus(prev => ({ ...prev, [file.name]: '✅ Uploaded to cache via canister HTTP call!' }));
       }
       
       return { 
         success: true, 
         cid: cid,
-        ipfsHash: pinataResult.ipfsHash,
-        gatewayUrl: pinataResult.gatewayUrl
+        ipfsHash: ipfsHash,
+        gatewayUrl: ipfsHash ? `https://gateway.pinata.cloud/ipfs/${ipfsHash}` : null,
+        resultMessage: resultMessage
       };
     } catch (error) {
       console.error('Upload error:', error);
