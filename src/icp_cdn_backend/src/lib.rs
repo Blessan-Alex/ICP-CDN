@@ -48,6 +48,16 @@ pub enum UserTier {
     Business,
 }
 
+// Cached image information for the resize interface
+#[derive(CandidType, Deserialize, Clone)]
+pub struct CachedImageInfo {
+    pub cid: String,
+    pub name: String,
+    pub content_type: String,
+    pub size: u64,
+    pub last_accessed: u64,
+}
+
 // Tier configuration constants
 const FREE_TIER_CACHE_LIMIT: u64 = 20 * 1024 * 1024; // 20MB
 const STARTER_TIER_CACHE_LIMIT: u64 = 50 * 1024 * 1024; // 50MB
@@ -2301,6 +2311,89 @@ async fn upload_content_with_canister_pinata(cid: String, content_type: String, 
             Ok(format!("Content uploaded to cache. CID: {} (Pinata upload failed: {})", cid, e))
         }
     }
+}
+
+// Get content with optional resizing
+#[ic_cdk::query]
+fn get_content_with_resize(cid: String, width: Option<u32>) -> Result<Vec<u8>, String> {
+    if cid.is_empty() {
+        return Err("CID cannot be empty".to_string());
+    }
+    
+    // First try to get content from cache
+    let content = if let Some(cache_entry) = get_cache_entry(&cid) {
+        cache_entry.bytes
+    } else {
+        // If not in cache, try to fetch from IPFS
+        // Note: This is a query function, so we can't use async/await
+        // For now, we'll return an error if content is not in cache
+        return Err("Content not found in cache. Please use get_content for IPFS fallback.".to_string());
+    };
+    
+    // If width is specified, resize the image
+    if let Some(target_width) = width {
+        // Check if content is an image
+        if content.len() > 0 {
+            // Try to resize the image
+            match resize_image(&content, target_width) {
+                Ok(resized_content) => Ok(resized_content),
+                Err(e) => Err(format!("Failed to resize image: {}", e))
+            }
+        } else {
+            Err("Content is empty".to_string())
+        }
+    } else {
+        // No resizing requested, return original content
+        Ok(content)
+    }
+}
+
+// List all cached images for the resize interface
+#[ic_cdk::query]
+fn list_cached_images() -> Vec<CachedImageInfo> {
+    let mut images = Vec::new();
+    
+    CACHE.with(|cache| {
+        let cache = cache.borrow();
+        for (cid, entry) in cache.iter() {
+            // Only include image files
+            if entry.content_type.starts_with("image/") {
+                images.push(CachedImageInfo {
+                    cid: cid.clone(),
+                    name: format!("Image_{}", cid.chars().take(8).collect::<String>()),
+                    content_type: entry.content_type.clone(),
+                    size: entry.size,
+                    last_accessed: entry.last_accessed_ts,
+                });
+            }
+        }
+    });
+    
+    // Sort by last accessed (most recent first)
+    images.sort_by(|a, b| b.last_accessed.cmp(&a.last_accessed));
+    images
+}
+
+// Get image dimensions for a cached image
+#[ic_cdk::query]
+fn get_image_dimensions(cid: String) -> Result<(u32, u32), String> {
+    if cid.is_empty() {
+        return Err("CID cannot be empty".to_string());
+    }
+    
+    // Get content from cache
+    let content = if let Some(cache_entry) = get_cache_entry(&cid) {
+        cache_entry.bytes
+    } else {
+        return Err("Image not found in cache".to_string());
+    };
+    
+    // Load image and get dimensions
+    let img = image::load_from_memory(&content)
+        .map_err(|e| format!("Failed to load image: {}", e))?;
+    
+    let (width, height) = img.dimensions();
+    Ok((width, height))
 }
 
 

@@ -254,12 +254,12 @@ export default function EnhancedUpload() {
       setUploadProgress(prev => ({ ...prev, [file.name]: 25 }));
 
       // Read file content for upload
-      const reader = new FileReader();
-      const fileBytes = await new Promise((resolve, reject) => {
-        reader.onload = () => resolve(new Uint8Array(reader.result));
-        reader.onerror = reject;
-        reader.readAsArrayBuffer(file);
-      });
+        const reader = new FileReader();
+        const fileBytes = await new Promise((resolve, reject) => {
+          reader.onload = () => resolve(new Uint8Array(reader.result));
+          reader.onerror = reject;
+          reader.readAsArrayBuffer(file);
+        });
 
       setUploadStatus(prev => ({ ...prev, [file.name]: 'Uploading via canister HTTP call...' }));
       setUploadProgress(prev => ({ ...prev, [file.name]: 50 }));
@@ -267,7 +267,7 @@ export default function EnhancedUpload() {
       // Upload using the new canister HTTP call function
       const uploadResult = await backend.upload_content_with_canister_pinata(
         cid,
-        file.type,
+          file.type,
         Array.from(fileBytes),
         file.name
       );
@@ -291,14 +291,14 @@ export default function EnhancedUpload() {
 
       // Store metadata for file management (if we have an IPFS hash)
       if (ipfsHash) {
-        const metadataResult = await backend.add_ipfs_file(
-          file.name,
+      const metadataResult = await backend.add_ipfs_file(
+        file.name,
           ipfsHash,
           BigInt(fileBytes.length),
           file.type
-        );
+      );
 
-        if (!metadataResult.Ok) {
+      if (!metadataResult.Ok) {
           console.warn('Failed to store metadata:', metadataResult.Err);
         }
       }
@@ -328,7 +328,7 @@ export default function EnhancedUpload() {
 
       // Add to uploaded files list
       setUploadedFiles(prev => [uploadedFile, ...prev]);
-
+      
       return { 
         success: true, 
         cid: cid,

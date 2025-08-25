@@ -57,6 +57,14 @@ type CachePerformanceMetrics = record {
     cache_utilization_percent: nat64;
 };
 
+type CachedImageInfo = record {
+    cid: text;
+    name: text;
+    content_type: text;
+    size: nat64;
+    last_accessed: nat64;
+};
+
 service : {
     "add_ipfs_file": (text, text, nat64, text) -> (variant { Ok : text; Err : text });
     "list_ipfs_files": () -> (vec IpfsFile) query;
@@ -116,6 +124,8 @@ service : {
     "get_content_with_resize": (text, opt nat32) -> (variant { Ok : vec nat8; Err : text });
     "create_test_image": (text, nat32, nat32) -> (variant { Ok : text; Err : text });
     "test_image_resizing": (text, nat32, nat32) -> (variant { Ok : text; Err : text });
+    "list_cached_images": () -> (vec CachedImageInfo) query;
+    "get_image_dimensions": (text) -> (variant { Ok : record { width : nat32; height : nat32; }; Err : text }) query;
     
     // HTTP Transform Function
     "transform": (record { context : blob; response : record { status : nat; body : blob; headers : vec record { value : text; name : text }; }; }) -> (record { status : nat; body : blob; headers : vec record { value : text; name : text }; }) query;

@@ -91,7 +91,7 @@ export default function EnhancedFileCard({ file, onAction }) {
       
       if (file.content_type.startsWith('image/')) {
         // Get resized preview for images
-        const result = await backend.get_content_with_resize(file.cid, 200);
+        const result = await backend.get_content_with_resize(file.cid, [200]);
         if (result.Ok) {
           const blob = new Blob([result.Ok], { type: 'image/png' });
           setPreview(URL.createObjectURL(blob));
