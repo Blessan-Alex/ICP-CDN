@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/logo.png";
 import { navItems, dashboardNavItem, enhancedNavItems } from "../constants";
+import { IoIosArrowDown } from "react-icons/io";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../AuthContext";
 import { login, logout } from "../auth";
@@ -84,41 +85,61 @@ const Navbar = () => {
           
           {/* Desktop Navigation */}
           <div className="hidden lg:flex items-center space-x-8">
-            {/* Home page navigation - Only show when logged out */}
-            {!isLoggedIn && (
-              <div className="flex items-center space-x-8">
-                {navItems.map((item, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleNavClick(item.href, item.type)}
-                    className="transition-colors duration-200 cursor-pointer relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 hover:text-orange-500"
-                    aria-label={item.label}
-                    tabIndex={0}
-                  >
-                    {item.label}
-                    <span className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 group-hover:w-full h-0.5 bg-orange-500 transition-all duration-300" />
-                  </button>
-                ))}
+            <div className="flex items-center space-x-8">
+              {/* Home first */}
+              {navItems.filter(n => n.label === "Home").map((item, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleNavClick(item.href, item.type)}
+                  className="transition-colors duration-200 cursor-pointer relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 hover:text-orange-500"
+                  aria-label={item.label}
+                  tabIndex={0}
+                >
+                  {item.label}
+                  <span className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 group-hover:w-full h-0.5 bg-orange-500 transition-all duration-300" />
+                </button>
+              ))}
+              {/* Features dropdown second */}
+              <div className="relative group">
+                <button
+                  onClick={() => handleNavClick('#features', 'scroll')}
+                  className="transition-colors duration-200 cursor-pointer relative flex items-center focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 hover:text-orange-500"
+                  aria-haspopup="true"
+                  aria-expanded="false"
+                  aria-label="Features"
+                  tabIndex={0}
+                >
+                  <span>Features</span>
+                  <IoIosArrowDown className="inline ml-1 w-4 h-4 transform transition-transform duration-200 group-hover:rotate-180" />
+                </button>
+                <div className="absolute left-0 mt-2 w-48 rounded-md border border-neutral-700 bg-neutral-900 text-white shadow-lg hidden group-hover:block z-50">
+                  <div className="py-2">
+                    {enhancedNavItems.map((subItem, subIndex) => (
+                      <button
+                        key={subIndex}
+                        onClick={() => handleNavClick(subItem.href, subItem.type)}
+                        className="block w-full text-left px-4 py-2 text-sm hover:bg-neutral-800 focus:outline-none"
+                      >
+                        {subItem.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-            )}
-            
-            {/* Enhanced Features Navigation - Only show when logged in */}
-            {isLoggedIn && (
-              <div className="flex items-center space-x-8">
-                {enhancedNavItems.map((item, index) => (
-                  <button
-                    key={index}
-                    onClick={() => handleNavClick(item.href, item.type)}
-                    className="transition-colors duration-200 cursor-pointer relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 hover:text-orange-500"
-                    aria-label={item.label}
-                    tabIndex={0}
-                  >
-                    {item.label}
-                    <span className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 group-hover:w-full h-0.5 bg-orange-500 transition-all duration-300" />
-                  </button>
-                ))}
-              </div>
-            )}
+              {/* Remaining nav items after Features */}
+              {navItems.filter(n => n.label !== "Home" && n.label !== "Features").map((item, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleNavClick(item.href, item.type)}
+                  className="transition-colors duration-200 cursor-pointer relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 hover:text-orange-500"
+                  aria-label={item.label}
+                  tabIndex={0}
+                >
+                  {item.label}
+                  <span className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 group-hover:w-full h-0.5 bg-orange-500 transition-all duration-300" />
+                </button>
+              ))}
+            </div>
             
             {/* Dashboard button - Only show when logged in */}
             {isLoggedIn && (
@@ -192,45 +213,36 @@ const Navbar = () => {
               transition={{ duration: 0.3 }}
             >
               <div className="px-2 pt-2 pb-3 space-y-1">
-                {/* Home page navigation - Only show when logged out */}
-                {!isLoggedIn && (
-                  <>
-                    {navItems.map((item, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleNavClick(item.href, item.type)}
-                        className="block px-3 py-2 text-base font-medium transition-colors duration-200 cursor-pointer relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 hover:text-orange-500"
-                        aria-label={item.label}
-                        tabIndex={0}
-                      >
-                        {item.label}
-                        <span className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 group-hover:w-full h-0.5 bg-orange-500 transition-all duration-300" />
-                      </button>
-                    ))}
-                  </>
-                )}
+                {/* Home, About, Mission shown always; Features becomes a dropdown section */}
+                {navItems.filter(n => n.label !== 'Features').map((item, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleNavClick(item.href, item.type)}
+                    className="block px-3 py-2 text-base font-medium transition-colors duration-200 cursor-pointer relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 hover:text-orange-500"
+                    aria-label={item.label}
+                    tabIndex={0}
+                  >
+                    {item.label}
+                    <span className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 group-hover:w-full h-0.5 bg-orange-500 transition-all duration-300" />
+                  </button>
+                ))}
+                {/* Mobile Features list */}
+                <div className="border-t border-neutral-700 my-2"></div>
+                <div className="px-3 py-1 text-xs font-semibold text-orange-400 uppercase tracking-wider">Features</div>
+                {enhancedNavItems.map((item, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleNavClick(item.href, item.type)}
+                    className="block px-3 py-2 text-base font-medium transition-colors duration-200 cursor-pointer relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 hover:text-orange-500"
+                    aria-label={item.label}
+                    tabIndex={0}
+                  >
+                    {item.label}
+                    <span className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 group-hover:w-full h-0.5 bg-orange-500 transition-all duration-300" />
+                  </button>
+                ))}
                 
-                {/* Enhanced Features Navigation - Only show when logged in */}
-                {isLoggedIn && (
-                  <>
-                    <div className="border-t border-neutral-700 my-2"></div>
-                    <div className="px-3 py-1 text-xs font-semibold text-orange-400 uppercase tracking-wider">
-                      Enhanced Features
-                    </div>
-                    {enhancedNavItems.map((item, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleNavClick(item.href, item.type)}
-                        className="block px-3 py-2 text-base font-medium transition-colors duration-200 cursor-pointer relative group focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 hover:text-orange-500"
-                        aria-label={item.label}
-                        tabIndex={0}
-                      >
-                        {item.label}
-                        <span className="absolute left-1/2 -translate-x-1/2 -bottom-2 w-0 group-hover:w-full h-0.5 bg-orange-500 transition-all duration-300" />
-                      </button>
-                    ))}
-                  </>
-                )}
+                
                 
                 {/* Dashboard button - Only show when logged in */}
                 {isLoggedIn && (

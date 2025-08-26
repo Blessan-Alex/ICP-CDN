@@ -1,0 +1,19 @@
+
+
+
+References (concise, high-signal)
+React dropdown patterns (accessibility and hover intent):
+Headless UI Menu (patterns): https://headlessui.com/react/menu
+WAI-ARIA menu button practices: https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/
+Hover-with-intent UX:
+CSS Tricks on hover menus: https://css-tricks.com/solved-with-css-dropdown-menus/
+Framer Motion hover/rotate:
+Framer Motion docs: https://www.framer.com/motion/
+Minimal JSX pattern for your Navbar.jsx
+Add dropdown under Features with hover 180° rotation on the arrow, using your existing enhancedNavItems.
+Mobile menu: mirror the same items under a “Features” section or as a collapsible list. For hover on mobile, use tap-to-open (accordion).
+Tips
+ips
+Keep Dashboard and Login buttons as they are in your code; just shift feature pages into the dropdown.
+Ensure the dropdown container has z-50 and the navbar has a high stacking context.
+Keyboard support: allow Tab/Shift+Tab to navigate menu items; close on Esc (Headless UI helps if you later want full a11y).
