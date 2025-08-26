@@ -1,0 +1,99 @@
+Goal
+Encrypt files client-side before Pinata upload.
+No passwords; use keys bound to the user/device.
+Decrypt in-browser for view/download.
+Backend and Pinata see ciphertext only.
+Approach overview
+Generate a random per-file AES-GCM key.
+Encrypt file in fixed-size chunks (e.g., 64KB) with IV counter.
+Wrap the file key with the user’s public key (no password).
+Upload ciphertext to Pinata; upload tiny metadata JSON with algorithm, IV scheme, chunk size, and the wrapped key.
+On view/download, fetch ciphertext + metadata, unwrap file key using the private key (in browser), stream-decrypt and render.
+Key management (no passwords)
+Option A (simple, built-in): RSA-OAEP(SHA-256) via Web Crypto
+On first run: generate and persist an RSA key pair in IndexedDB
+    const rsa = await crypto.subtle.generateKey(
+      { name: "RSA-OAEP", modulusLength: 4096, publicExponent: new Uint8Array([1,0,1]), hash: "SHA-256" },
+      true,
+      ["encrypt","decrypt"]
+    );
+    // Persist with indexedDB or CryptoKeyStorage (extractable: false for private)
+    wrap file key:
+        const wrappedFileKey = new Uint8Array(await crypto.subtle.encrypt(
+      { name: "RSA-OAEP" },
+      rsa.publicKey,
+      fileKeyBytes
+    ));
+    unwrap file key:
+        const fileKeyRaw = new Uint8Array(await crypto.subtle.decrypt(
+      { name: "RSA-OAEP" },
+      rsa.privateKey,
+      wrappedFileKey
+    ));
+    Option B (compact, sharing-friendly): X25519 + HKDF (e.g., @noble/curves/@noble/hashes)
+Generate static X25519 key pair; derive a one-time AEAD key via ECDH + HKDF per wrap.
+Similar wrapping/unwrapping, but requires a small lib; good for multi-recipient sharing.
+Option C (strongest UX): WebAuthn resident keys
+Use a platform authenticator (passkey) to hold the private key; the browser prompts on unwrap. Requires a WebAuthn flow; very secure and phish-resistant.
+Recommendation: Start with RSA-OAEP Web Crypto (no external deps), then optionally add X25519 for multi-user sharing later.
+Encryption flow (client-side)
+Create per-file AES key and stream-encrypt
+  const chunkSize = 64*1024;
+  const fileKey = crypto.getRandomValues(new Uint8Array(32));
+  const k = await crypto.subtle.importKey("raw", fileKey, "AES-GCM", false, ["encrypt","decrypt"]);
+
+  let i = 0;
+  const reader = file.stream().getReader();
+  const out = new TransformStream({
+    async transform(chunk, ctrl) {
+      const iv = new Uint8Array(12);
+      new DataView(iv.buffer).setUint32(8, i++); // counter in last 4 bytes
+      const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, k, chunk);
+      ctrl.enqueue(new Uint8Array(ct)); // ct || tag
+    }
+  });
+
+  // wrap fileKey with RSA public key
+  const wrappedKey = new Uint8Array(await crypto.subtle.encrypt({ name: "RSA-OAEP" }, publicKey, fileKey));
+  etadat json:
+    {
+    "v": 1,
+    "alg": "AES-GCM",
+    "chunkSize": 65536,
+    "ivBase": "counter-last4",
+    "wrap": { "alg": "RSA-OAEP", "wrappedKey": "<base64url>" },
+    "originalName": "file.png",
+    "originalType": "image/png",
+    "ciphertextCid": "<cid>"
+  }
+  Upload ciphertext to Pinata; upload metadata JSON separately; index both CIDs in your canister.
+View/download flow (client-side)
+Fetch metadata JSON and ciphertext stream from gateway using their CIDs.
+Unwrap file key with the private key (in browser).
+Stream-decrypt using the same IV counter scheme; collect to Blob or pipe to a preview element.
+  const fileKeyRaw = new Uint8Array(await crypto.subtle.decrypt({ name: "RSA-OAEP" }, privateKey, wrappedBuf));
+  const fileKey = await crypto.subtle.importKey("raw", fileKeyRaw, "AES-GCM", false, ["decrypt"]);
+  let i = 0;
+  const dec = new TransformStream({
+    async transform(chunk, ctrl) {
+      const iv = new Uint8Array(12);
+      new DataView(iv.buffer).setUint32(8, i++);
+      const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, fileKey, chunk);
+      ctrl.enqueue(new Uint8Array(pt));
+    }
+  });
+  On first connect: generate RSA-OAEP key pair; store keys in IndexedDB (private non-extractable).
+On upload page: add “Encrypt before upload” toggle (default ON). When ON, encrypt file + wrap key, upload ciphertext and metadata.
+On file view: fetch metadata, unwrap key with private key, stream-decrypt for preview/download.
+Backend remains a dumb proxy/uploader for ciphertext; cannot decrypt.
+This provides passwordless, end-to-end encryption: only the browser can decrypt; Pinata and backend only handle ciphertext and non-sensitive metadata.
+ecurity notes
+AES-GCM with unique IV per chunk (counter) provides integrity; never reuse IV+key pair.
+Rotate or regenerate public key pairs per device if desired; allow export/backup of private key encrypted with a local passphrase if you need portability.
+Consider CSP and disallow mixed content; keep metadata minimal (no PII).
+For WebAuthn option, the private key remains in the authenticator; unwrap requires user presence/verification.
+Backend hardening (so backend can’t see plaintext)
+Accept only ciphertext uploads; do NOT accept plaintext upload when encryption is enabled.
+Do not log request bodies; scrub storage/logs of sensitive headers.
+If offering a server “download-decrypted” convenience route, ensure it only proxies ciphertext to the client; prefer pure client decrypt for zero-trust.
+Enforce size limits, MIME checks, and rate limiting; reject oversized multipart early.
