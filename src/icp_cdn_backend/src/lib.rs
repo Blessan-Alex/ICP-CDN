@@ -17,6 +17,8 @@ pub struct IpfsFile {
     pub size: u64,
     pub content_type: String,
     pub uploaded_at: u64,
+    pub is_encrypted: bool,
+    pub metadata_cid: Option<String>,
 }
 
 // New CacheEntry struct for storing file information in the cache
@@ -27,6 +29,21 @@ pub struct CacheEntry {
     pub size: u64,
     pub last_accessed_ts: u64,
     pub bytes: Vec<u8>,
+    pub is_encrypted: bool,
+    pub metadata_cid: Option<String>,
+}
+
+// Encryption metadata structure
+#[derive(CandidType, Clone, serde::Serialize, serde::Deserialize)]
+pub struct EncryptionMetadata {
+    pub version: u32,
+    pub algorithm: String,
+    pub chunk_size: u32,
+    pub iv_base: String,
+    pub wrapped_key: String,
+    pub original_name: String,
+    pub original_type: String,
+    pub ciphertext_cid: String,
 }
 
 // New UserAccount struct for managing user-specific data and balances
@@ -37,6 +54,7 @@ pub struct UserAccount {
     pub tier: UserTier,
     pub cache_usage_bytes: u64,
     pub pinata_enabled: bool,
+    pub encryption_enabled: bool,
 }
 
 // User tier enumeration
@@ -83,6 +101,7 @@ impl Default for UserAccount {
             tier: UserTier::Free,
             cache_usage_bytes: 0,
             pinata_enabled: false,
+            encryption_enabled: false,
         }
     }
 }
@@ -238,7 +257,7 @@ fn reset_metrics() {
 }
 
 #[ic_cdk::update]
-fn add_ipfs_file(name: String, cid: String, size: u64, content_type: String) -> Result<String, String> {
+fn add_ipfs_file(name: String, cid: String, size: u64, content_type: String, is_encrypted: bool, metadata_cid: Option<String>) -> Result<String, String> {
     if name.is_empty() || cid.is_empty() {
         return Err("Filename and CID cannot be empty".to_string());
     }
@@ -248,6 +267,8 @@ fn add_ipfs_file(name: String, cid: String, size: u64, content_type: String) -> 
         size,
         content_type,
         uploaded_at: ic_cdk::api::time(),
+        is_encrypted,
+        metadata_cid,
     };
     let user_key = get_user_key();
     USER_FILES.with(|files| {
@@ -315,6 +336,7 @@ fn deposit_cycles() -> UserAccount {
             tier: UserTier::Free,
             cache_usage_bytes: 0,
             pinata_enabled: false,
+            encryption_enabled: false,
         });
         
         // Add the accepted cycles to the user's cycles_balance
@@ -351,6 +373,7 @@ fn get_user_account() -> UserAccount {
             tier: UserTier::Free,
             cache_usage_bytes: 0,
             pinata_enabled: false,
+            encryption_enabled: false,
         })
     })
 }
@@ -427,6 +450,7 @@ fn put_cache_entry(cid: String, cache_entry: CacheEntry) -> Result<(), String> {
                 tier: UserTier::Free,
                 cache_usage_bytes: 0,
                 pinata_enabled: false,
+                encryption_enabled: false,
             };
             accounts.insert(caller_principal, new_account.clone());
             new_account
@@ -547,6 +571,7 @@ fn get_user_tier_info() -> Result<UserTierInfo, String> {
             tier: UserTier::Free,
             cache_usage_bytes: 0,
             pinata_enabled: false,
+            encryption_enabled: false,
         })
     });
     
@@ -650,6 +675,7 @@ async fn upload_content(cid: String, content_type: String, content: Vec<u8>) -> 
             tier: UserTier::Free,
             cache_usage_bytes: 0,
             pinata_enabled: false,
+            encryption_enabled: false,
         })
     });
     
@@ -660,6 +686,8 @@ async fn upload_content(cid: String, content_type: String, content: Vec<u8>) -> 
         size: content.len() as u64,
         last_accessed_ts: ic_cdk::api::time(),
         bytes: content.clone(),
+        is_encrypted: false,
+        metadata_cid: None,
     };
     
     // Store in cache (this will check user's cache limits)
@@ -1079,6 +1107,8 @@ fn test_create_cache_entry(cid: String, content_type: String, size: u64, content
         size,
         last_accessed_ts: ic_cdk::api::time(),
         bytes: content,
+        is_encrypted: false,
+        metadata_cid: None,
     };
     
     put_cache_entry(cid.clone(), cache_entry)?;
@@ -1107,6 +1137,7 @@ fn test_create_user_account(principal: Principal, initial_balance: u128) -> Resu
         tier: UserTier::Free,
         cache_usage_bytes: 0,
         pinata_enabled: false,
+        encryption_enabled: false,
     };
     
     ACCOUNTS.with(|accounts| {
@@ -1142,6 +1173,7 @@ fn get_current_user_cache_usage() -> Result<u64, String> {
                 tier: UserTier::Free,
                 cache_usage_bytes: 0,
                 pinata_enabled: false,
+                encryption_enabled: false,
             };
             
             // Insert the new account
@@ -1221,6 +1253,8 @@ fn test_lru_eviction_demo() -> Result<String, String> {
             size: 1024, // 1KB each
             last_accessed_ts: ic_cdk::api::time(),
             bytes: vec![b'a'; 1024], // 1KB of data
+            is_encrypted: false,
+            metadata_cid: None,
         };
         
         put_cache_entry(cid.clone(), cache_entry)?;
@@ -1261,6 +1295,8 @@ fn test_lru_access_pattern() -> Result<String, String> {
             size: 512,
             last_accessed_ts: ic_cdk::api::time(),
             bytes: vec![b'b'; 512],
+            is_encrypted: false,
+            metadata_cid: None,
         };
         put_cache_entry(cid.to_string(), cache_entry)?;
     }
@@ -1565,6 +1601,7 @@ fn clear_user_cache() -> Result<String, String> {
                 tier: UserTier::Free,
                 cache_usage_bytes: 0,
                 pinata_enabled: false,
+                encryption_enabled: false,
             });
             Ok("✅ Created new account with 0 cache usage".to_string())
         }
@@ -2216,6 +2253,8 @@ async fn test_http_canister_calls_summary() -> Result<String, String> {
         size: test_content.len() as u64,
         last_accessed_ts: ic_cdk::api::time(),
         bytes: test_content.to_vec(),
+        is_encrypted: false,
+        metadata_cid: None,
     };
     
     CACHE.with(|cache| {
@@ -2291,6 +2330,7 @@ async fn upload_content_with_canister_pinata(cid: String, content_type: String, 
             tier: UserTier::Free,
             cache_usage_bytes: 0,
             pinata_enabled: false,
+            encryption_enabled: false,
         })
     });
     
@@ -2298,12 +2338,17 @@ async fn upload_content_with_canister_pinata(cid: String, content_type: String, 
     ic_cdk::print(format!("📝 File: {} ({} bytes), CID: {}", filename, content.len(), cid));
     
     // Step 1: Create a cache entry for the uploaded content
+    // Check if this is encrypted content by looking at the content type
+    let is_encrypted = content_type == "application/octet-stream" && filename.ends_with(".encrypted");
+    
     let cache_entry = CacheEntry {
         cid: cid.clone(),
         content_type: content_type.clone(),
         size: content.len() as u64,
         last_accessed_ts: ic_cdk::api::time(),
         bytes: content.clone(),
+        is_encrypted: is_encrypted,
+        metadata_cid: None,
     };
     
     // Step 2: Store in cache (this will check user's cache limits)
@@ -2312,6 +2357,9 @@ async fn upload_content_with_canister_pinata(cid: String, content_type: String, 
         return Err(format!("Failed to cache uploaded content: {}", e));
     }
     ic_cdk::print("✅ Content successfully cached in dCDN");
+    
+    // For encrypted content, we need to update the cache entry with metadata CID later
+    // This will be done by the frontend after storing the metadata
     
     // Step 3: Upload to Pinata via HTTP canister call
     ic_cdk::print("🌐 Uploading to Pinata via HTTP canister call...");
@@ -2401,6 +2449,8 @@ async fn get_content(cid: String) -> Result<Vec<u8>, String> {
                 size: content.len() as u64,
                 last_accessed_ts: ic_cdk::api::time(),
                 bytes: content.clone(),
+                is_encrypted: false,
+                metadata_cid: None,
             };
             
             let _ = put_cache_entry(cid.clone(), cache_entry);
@@ -2500,6 +2550,7 @@ async fn canister_upload(
             tier: UserTier::Free,
             cache_usage_bytes: 0,
             pinata_enabled: false,
+            encryption_enabled: false,
         });
         
         // Add the accepted cycles to the canister's balance
@@ -2515,6 +2566,8 @@ async fn canister_upload(
         size: content.len() as u64,
         last_accessed_ts: ic_cdk::api::time(),
         bytes: content.clone(),
+        is_encrypted: false,
+        metadata_cid: None,
     };
     
     // Store in cache
@@ -2585,6 +2638,8 @@ async fn canister_get_content_with_fallback(caller: Principal, cid: String) -> R
                 size: content.len() as u64,
                 last_accessed_ts: ic_cdk::api::time(),
                 bytes: content.clone(),
+                is_encrypted: false,
+                metadata_cid: None,
             };
             
             let _ = put_cache_entry(cid.clone(), cache_entry);
@@ -2626,6 +2681,7 @@ async fn canister_bulk_upload(
             tier: UserTier::Free,
             cache_usage_bytes: 0,
             pinata_enabled: false,
+            encryption_enabled: false,
         });
         
         // Add the accepted cycles to the canister's balance
@@ -2656,6 +2712,8 @@ async fn canister_bulk_upload(
             size: content.len() as u64,
             last_accessed_ts: ic_cdk::api::time(),
             bytes: content.clone(),
+                is_encrypted: false,
+                metadata_cid: None,
         };
         
         // Store in cache
@@ -2697,6 +2755,7 @@ fn canister_get_account_info(caller: Principal) -> UserAccount {
             tier: UserTier::Free,
             cache_usage_bytes: 0,
             pinata_enabled: false,
+            encryption_enabled: false,
         })
     })
 }
@@ -2722,6 +2781,7 @@ async fn canister_deposit_cycles(caller: Principal, cycles_amount: u128) -> User
             tier: UserTier::Free,
             cache_usage_bytes: 0,
             pinata_enabled: false,
+            encryption_enabled: false,
         });
         
         // Add the accepted cycles to the canister's balance
@@ -2757,5 +2817,463 @@ fn generate_cid_for_content(content: &[u8], content_type: &str) -> String {
     
     format!("Qm{:x}", hasher.finish())
 }
+
+// ===== ENCRYPTION FUNCTIONS =====
+
+/// Upload encrypted content to the dCDN
+/// This function handles encrypted content separately from regular content
+#[ic_cdk::update]
+async fn upload_encrypted_content(
+    cid: String,
+    encrypted_content: Vec<u8>,
+    encryption_metadata: EncryptionMetadata,
+    filename: String
+) -> Result<String, String> {
+    if cid.is_empty() {
+        return Err("CID cannot be empty".to_string());
+    }
+    
+    if encrypted_content.is_empty() {
+        return Err("Encrypted content cannot be empty".to_string());
+    }
+    
+    let caller_principal = ic_cdk::api::caller();
+    
+    // Get user account to check tier and encryption status
+    let user_account = ACCOUNTS.with(|accounts| {
+        let accounts = accounts.borrow();
+        accounts.get(&caller_principal).cloned().unwrap_or_else(|| UserAccount {
+            user_principal: caller_principal,
+            cycles_balance: 0,
+            tier: UserTier::Free,
+            cache_usage_bytes: 0,
+            pinata_enabled: false,
+            encryption_enabled: false,
+        })
+    });
+    
+    ic_cdk::print(format!("🔐 Starting encrypted upload flow: upload encrypted file -> cache -> pinata call"));
+    ic_cdk::print(format!("📝 File: {} ({} bytes), CID: {}", filename, encrypted_content.len(), cid));
+    
+    // Validate encryption metadata
+    if encryption_metadata.version != 1 {
+        return Err("Unsupported encryption version".to_string());
+    }
+    
+    if encryption_metadata.algorithm != "AES-GCM" {
+        return Err("Unsupported encryption algorithm".to_string());
+    }
+    
+    // Step 1: Create a cache entry for the encrypted content
+    let cache_entry = CacheEntry {
+        cid: cid.clone(),
+        content_type: "application/octet-stream".to_string(), // Encrypted content is always binary
+        size: encrypted_content.len() as u64,
+        last_accessed_ts: ic_cdk::api::time(),
+        bytes: encrypted_content.clone(),
+        is_encrypted: true,
+        metadata_cid: None, // Will be set after metadata upload
+    };
+    
+    // Step 2: Store encrypted content in cache
+    ic_cdk::print("📦 Storing encrypted content in dCDN cache...");
+    if let Err(e) = put_cache_entry(cid.clone(), cache_entry) {
+        return Err(format!("Failed to cache encrypted content: {}", e));
+    }
+    ic_cdk::print("✅ Encrypted content successfully cached in dCDN");
+    
+    // Step 3: Store encryption metadata separately
+    ic_cdk::print("🔑 Storing encryption metadata...");
+    let metadata_cid = generate_cid_for_content(&serde_json::to_vec(&encryption_metadata).unwrap(), "application/json");
+    
+    let metadata_cache_entry = CacheEntry {
+        cid: metadata_cid.clone(),
+        content_type: "application/json".to_string(),
+        size: serde_json::to_vec(&encryption_metadata).unwrap().len() as u64,
+        last_accessed_ts: ic_cdk::api::time(),
+        bytes: serde_json::to_vec(&encryption_metadata).unwrap(),
+        is_encrypted: false,
+        metadata_cid: None,
+    };
+    
+    if let Err(e) = put_cache_entry(metadata_cid.clone(), metadata_cache_entry) {
+        return Err(format!("Failed to cache encryption metadata: {}", e));
+    }
+    
+    // Update the main cache entry with metadata CID
+    if let Some(mut main_entry) = get_cache_entry(&cid) {
+        main_entry.metadata_cid = Some(metadata_cid.clone());
+        let _ = put_cache_entry(cid.clone(), main_entry);
+    }
+    
+    // Step 4: Upload encrypted content to Pinata via HTTP canister call
+    ic_cdk::print("🌐 Uploading encrypted content to Pinata via HTTP canister call...");
+    
+    // Determine if we should pin the content based on user tier
+    let should_pin = user_account.tier != UserTier::Free;
+    
+    match upload_to_pinata(&encrypted_content, &cid, "application/octet-stream", should_pin).await {
+            Ok(ipfs_hash) => {
+            ic_cdk::print(format!("✅ Encrypted content successfully uploaded to Pinata. IPFS Hash: {}", ipfs_hash));
+            
+            // Also upload metadata to Pinata
+            let metadata_bytes = serde_json::to_vec(&encryption_metadata).unwrap();
+            match upload_to_pinata(&metadata_bytes, &metadata_cid, "application/json", should_pin).await {
+                Ok(metadata_ipfs_hash) => {
+                    ic_cdk::print(format!("✅ Encryption metadata successfully uploaded to Pinata. Metadata IPFS Hash: {}", metadata_ipfs_hash));
+                    Ok(format!("Encrypted content uploaded successfully. Content CID: {}, Content IPFS Hash: {}, Metadata CID: {}, Metadata IPFS Hash: {}", 
+                              cid, ipfs_hash, metadata_cid, metadata_ipfs_hash))
+            }
+            Err(e) => {
+                    ic_cdk::print(format!("⚠️ Failed to upload metadata to Pinata: {}", e));
+                    Ok(format!("Encrypted content uploaded successfully. Content CID: {}, Content IPFS Hash: {}, Metadata CID: {} (Metadata upload failed: {})", 
+                              cid, ipfs_hash, metadata_cid, e))
+                }
+            }
+        }
+        Err(e) => {
+            ic_cdk::print(format!("⚠️ Failed to upload encrypted content to Pinata: {}", e));
+            Ok(format!("Encrypted content cached successfully. CID: {} (Pinata upload failed: {})", cid, e))
+        }
+    }
+}
+
+/// Get encrypted content from the dCDN
+/// Returns both the encrypted content and its metadata for client-side decryption
+#[ic_cdk::query]
+fn get_encrypted_content(cid: String) -> Result<(Vec<u8>, EncryptionMetadata), String> {
+    if cid.is_empty() {
+        return Err("CID cannot be empty".to_string());
+    }
+    
+    // Get the main cache entry
+    let cache_entry = match get_cache_entry(&cid) {
+        Some(entry) => entry,
+        None => return Err(format!("Encrypted content not found: {}", cid)),
+    };
+    
+    // Verify this is encrypted content
+    if !cache_entry.is_encrypted {
+        return Err("Content is not encrypted".to_string());
+    }
+    
+            // Get the metadata CID
+        let metadata_cid = match &cache_entry.metadata_cid {
+            Some(cid) => cid.clone(),
+            None => return Err("Encryption metadata not found".to_string()),
+        };
+        
+        // Get the metadata
+        let metadata_entry = match get_cache_entry(&metadata_cid) {
+            Some(entry) => entry,
+            None => return Err(format!("Encryption metadata not found: {}", metadata_cid)),
+        };
+        
+        // Parse the metadata
+        let encryption_metadata: EncryptionMetadata = match serde_json::from_slice(&metadata_entry.bytes) {
+            Ok(metadata) => metadata,
+            Err(e) => return Err(format!("Failed to parse encryption metadata: {}", e)),
+        };
+        
+        // Update last accessed timestamp for the main entry
+        let mut updated_entry = cache_entry.clone();
+        updated_entry.last_accessed_ts = ic_cdk::api::time();
+        let _ = put_cache_entry(cid.clone(), updated_entry);
+        
+    Ok((cache_entry.bytes, encryption_metadata))
+}
+
+/// Store encryption metadata separately
+#[ic_cdk::update]
+async fn store_encryption_metadata(
+    cid: String,
+    metadata: EncryptionMetadata
+) -> Result<String, String> {
+    if cid.is_empty() {
+        return Err("CID cannot be empty".to_string());
+    }
+    
+    // Validate encryption metadata
+    if metadata.version != 1 {
+        return Err("Unsupported encryption version".to_string());
+    }
+    
+    if metadata.algorithm != "AES-GCM" {
+        return Err("Unsupported encryption algorithm".to_string());
+    }
+    
+    let caller_principal = ic_cdk::api::caller();
+    
+    // Get user account
+    let user_account = ACCOUNTS.with(|accounts| {
+        let accounts = accounts.borrow();
+        accounts.get(&caller_principal).cloned().unwrap_or_else(|| UserAccount {
+            user_principal: caller_principal,
+            cycles_balance: 0,
+            tier: UserTier::Free,
+            cache_usage_bytes: 0,
+            pinata_enabled: false,
+            encryption_enabled: false,
+        })
+    });
+    
+    // Generate metadata CID
+    let metadata_cid = generate_cid_for_content(&serde_json::to_vec(&metadata).unwrap(), "application/json");
+    
+    // Create cache entry for metadata
+    let metadata_cache_entry = CacheEntry {
+        cid: metadata_cid.clone(),
+        content_type: "application/json".to_string(),
+        size: serde_json::to_vec(&metadata).unwrap().len() as u64,
+                last_accessed_ts: ic_cdk::api::time(),
+        bytes: serde_json::to_vec(&metadata).unwrap(),
+        is_encrypted: false,
+        metadata_cid: None,
+    };
+    
+    // Store metadata in cache
+    if let Err(e) = put_cache_entry(metadata_cid.clone(), metadata_cache_entry) {
+        return Err(format!("Failed to cache encryption metadata: {}", e));
+    }
+    
+    // Update the main cache entry with metadata CID if it exists
+    if let Some(mut main_entry) = get_cache_entry(&cid) {
+        main_entry.metadata_cid = Some(metadata_cid.clone());
+        let _ = put_cache_entry(cid.clone(), main_entry);
+    }
+    
+    // Upload metadata to Pinata if user tier supports it
+    if user_account.pinata_enabled {
+        let metadata_bytes = serde_json::to_vec(&metadata).unwrap();
+        match upload_to_pinata(&metadata_bytes, &metadata_cid, "application/json", true).await {
+            Ok(ipfs_hash) => {
+                Ok(format!("Encryption metadata stored successfully. Metadata CID: {}, IPFS Hash: {}", metadata_cid, ipfs_hash))
+            }
+            Err(e) => {
+                Ok(format!("Encryption metadata cached successfully. Metadata CID: {} (Pinata upload failed: {})", metadata_cid, e))
+            }
+        }
+    } else {
+        Ok(format!("Encryption metadata cached successfully. Metadata CID: {} (Pinata not enabled for this tier)", metadata_cid))
+    }
+}
+
+/// Update cache entry with metadata CID for encrypted content
+#[ic_cdk::update]
+fn update_cache_entry_metadata(cid: String, metadata_cid: String) -> Result<String, String> {
+    if cid.is_empty() {
+        return Err("CID cannot be empty".to_string());
+    }
+    
+    if metadata_cid.is_empty() {
+        return Err("Metadata CID cannot be empty".to_string());
+    }
+    
+    // Get the existing cache entry
+    let mut cache_entry = match get_cache_entry(&cid) {
+        Some(entry) => entry,
+        None => return Err(format!("Cache entry not found: {}", cid)),
+    };
+    
+    // Update the metadata CID
+    cache_entry.metadata_cid = Some(metadata_cid.clone());
+    
+    // Store the updated entry
+    if let Err(e) = put_cache_entry(cid.clone(), cache_entry) {
+        return Err(format!("Failed to update cache entry: {}", e));
+    }
+    
+    Ok(format!("Cache entry updated with metadata CID: {}", metadata_cid))
+}
+
+/// Validate encryption metadata
+#[ic_cdk::query]
+fn validate_encryption_metadata(metadata: EncryptionMetadata) -> Result<bool, String> {
+    if metadata.version != 1 {
+        return Err("Unsupported encryption version".to_string());
+    }
+    
+    if metadata.algorithm != "AES-GCM" {
+        return Err("Unsupported encryption algorithm".to_string());
+    }
+    
+    if metadata.chunk_size == 0 || metadata.chunk_size > 1024 * 1024 {
+        return Err("Invalid chunk size".to_string());
+    }
+    
+    if metadata.wrapped_key.is_empty() {
+        return Err("Wrapped key cannot be empty".to_string());
+    }
+    
+    if metadata.original_name.is_empty() {
+        return Err("Original name cannot be empty".to_string());
+    }
+    
+    if metadata.ciphertext_cid.is_empty() {
+        return Err("Ciphertext CID cannot be empty".to_string());
+    }
+    
+    Ok(true)
+}
+
+/// Canister-to-canister encrypted content upload
+#[ic_cdk::update]
+async fn canister_upload_encrypted(
+    caller: Principal,
+    encrypted_content: Vec<u8>,
+    encryption_metadata: EncryptionMetadata,
+    cycles_payment: u128
+) -> Result<String, String> {
+    // Validate input
+    if encrypted_content.is_empty() {
+        return Err("Encrypted content cannot be empty".to_string());
+    }
+    
+    if cycles_payment == 0 {
+        return Err("Cycles payment must be greater than 0".to_string());
+    }
+    
+    // Validate encryption metadata
+    if let Err(e) = validate_encryption_metadata(encryption_metadata.clone()) {
+        return Err(format!("Invalid encryption metadata: {}", e));
+    }
+    
+    // Accept the cycles payment from the calling canister
+    let cycles_available = ic_cdk::api::call::msg_cycles_available128();
+    let cycles_accepted = ic_cdk::api::call::msg_cycles_accept128(cycles_payment.min(cycles_available));
+    
+    ic_cdk::print(format!("Canister encrypted upload: Accepted {} cycles from caller {}", cycles_accepted, caller));
+    
+    // Generate a CID for the encrypted content
+    let cid = generate_cid_for_content(&encrypted_content, "application/octet-stream");
+    
+    // Get or create user account for the calling canister
+    let user_account = ACCOUNTS.with(|accounts| {
+        let mut accounts = accounts.borrow_mut();
+        let user_account = accounts.entry(caller).or_insert_with(|| UserAccount {
+            user_principal: caller,
+            cycles_balance: 0,
+            tier: UserTier::Free,
+            cache_usage_bytes: 0,
+            pinata_enabled: false,
+            encryption_enabled: false,
+        });
+        
+        // Add the accepted cycles to the canister's balance
+        user_account.cycles_balance = user_account.cycles_balance.saturating_add(cycles_accepted);
+        
+        user_account.clone()
+    });
+    
+    // Create a cache entry for the encrypted content
+        let cache_entry = CacheEntry {
+            cid: cid.clone(),
+        content_type: "application/octet-stream".to_string(),
+        size: encrypted_content.len() as u64,
+            last_accessed_ts: ic_cdk::api::time(),
+        bytes: encrypted_content.clone(),
+        is_encrypted: true,
+        metadata_cid: None,
+        };
+        
+        // Store in cache
+        if let Err(e) = put_cache_entry(cid.clone(), cache_entry) {
+        return Err(format!("Failed to cache encrypted content: {}", e));
+    }
+    
+    // Store encryption metadata
+    let metadata_cid = generate_cid_for_content(&serde_json::to_vec(&encryption_metadata).unwrap(), "application/json");
+    let metadata_cache_entry = CacheEntry {
+        cid: metadata_cid.clone(),
+        content_type: "application/json".to_string(),
+        size: serde_json::to_vec(&encryption_metadata).unwrap().len() as u64,
+        last_accessed_ts: ic_cdk::api::time(),
+        bytes: serde_json::to_vec(&encryption_metadata).unwrap(),
+        is_encrypted: false,
+        metadata_cid: None,
+    };
+    
+    if let Err(e) = put_cache_entry(metadata_cid.clone(), metadata_cache_entry) {
+        return Err(format!("Failed to cache encryption metadata: {}", e));
+    }
+    
+    // Update the main cache entry with metadata CID
+    if let Some(mut main_entry) = get_cache_entry(&cid) {
+        main_entry.metadata_cid = Some(metadata_cid.clone());
+        let _ = put_cache_entry(cid.clone(), main_entry);
+    }
+    
+    // For paid tiers, also upload to Pinata for persistence
+    if user_account.pinata_enabled {
+        match upload_to_pinata(&encrypted_content, &cid, "application/octet-stream", true).await {
+            Ok(ipfs_hash) => {
+                // Also upload metadata
+                let metadata_bytes = serde_json::to_vec(&encryption_metadata).unwrap();
+                match upload_to_pinata(&metadata_bytes, &metadata_cid, "application/json", true).await {
+                    Ok(metadata_ipfs_hash) => {
+                        Ok(format!("Encrypted content uploaded and pinned to IPFS. Content CID: {}, Content IPFS Hash: {}, Metadata CID: {}, Metadata IPFS Hash: {}", 
+                                  cid, ipfs_hash, metadata_cid, metadata_ipfs_hash))
+                    }
+                    Err(e) => {
+                        Ok(format!("Encrypted content uploaded and pinned to IPFS. Content CID: {}, Content IPFS Hash: {}, Metadata CID: {} (Metadata upload failed: {})", 
+                                  cid, ipfs_hash, metadata_cid, e))
+                    }
+                }
+            }
+            Err(e) => {
+                Ok(format!("Encrypted content uploaded to cache. Content CID: {}, Metadata CID: {} (Pinata upload failed: {})", cid, metadata_cid, e))
+            }
+        }
+    } else {
+        Ok(format!("Encrypted content uploaded to cache. Content CID: {}, Metadata CID: {} (Pinata not enabled for this tier)", cid, metadata_cid))
+    }
+}
+
+/// Canister-to-canister encrypted content retrieval
+#[ic_cdk::query]
+fn canister_get_encrypted_content(caller: Principal, cid: String) -> Result<(Vec<u8>, EncryptionMetadata), String> {
+    if cid.is_empty() {
+        return Err("CID cannot be empty".to_string());
+    }
+    
+    // Check if content is in cache
+    if let Some(cache_entry) = get_cache_entry(&cid) {
+        // Verify this is encrypted content
+        if !cache_entry.is_encrypted {
+            return Err("Content is not encrypted".to_string());
+        }
+        
+        // Get the metadata CID
+        let metadata_cid = match &cache_entry.metadata_cid {
+            Some(cid) => cid.clone(),
+            None => return Err("Encryption metadata not found".to_string()),
+        };
+        
+        // Get the metadata
+        let metadata_entry = match get_cache_entry(&metadata_cid) {
+            Some(entry) => entry,
+            None => return Err(format!("Encryption metadata not found: {}", metadata_cid)),
+        };
+        
+        // Parse the metadata
+        let encryption_metadata: EncryptionMetadata = match serde_json::from_slice(&metadata_entry.bytes) {
+            Ok(metadata) => metadata,
+            Err(e) => return Err(format!("Failed to parse encryption metadata: {}", e)),
+        };
+        
+        // Update last accessed timestamp
+        let mut updated_entry = cache_entry.clone();
+        updated_entry.last_accessed_ts = ic_cdk::api::time();
+        let _ = put_cache_entry(cid.clone(), updated_entry);
+        
+        return Ok((cache_entry.bytes, encryption_metadata));
+    }
+    
+    // Content not found in cache
+    Err(format!("Encrypted content not found: {}", cid))
+}
+
+// ===== HELPER FUNCTIONS =====
+
 
 

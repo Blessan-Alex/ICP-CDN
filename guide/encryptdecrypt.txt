@@ -1,19 +1,164 @@
+I'll help you create a plan to add encrypt/decrypt functionality to your canister functions without disrupting the existing flow. Let me first examine your current codebase to understand the existing architecture.
 
 
+[5 tools called]
 
-References (concise, high-signal)
-React dropdown patterns (accessibility and hover intent):
-Headless UI Menu (patterns): https://headlessui.com/react/menu
-WAI-ARIA menu button practices: https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/
-Hover-with-intent UX:
-CSS Tricks on hover menus: https://css-tricks.com/solved-with-css-dropdown-menus/
-Framer Motion hover/rotate:
-Framer Motion docs: https://www.framer.com/motion/
-Minimal JSX pattern for your Navbar.jsx
-Add dropdown under Features with hover 180° rotation on the arrow, using your existing enhancedNavItems.
-Mobile menu: mirror the same items under a “Features” section or as a collapsible list. For hover on mobile, use tap-to-open (accordion).
-Tips
-ips
-Keep Dashboard and Login buttons as they are in your code; just shift feature pages into the dropdown.
-Ensure the dropdown container has z-50 and the navbar has a high stacking context.
-Keyboard support: allow Tab/Shift+Tab to navigate menu items; close on Esc (Headless UI helps if you later want full a11y).
+Based on my analysis of your codebase, I can see you have a comprehensive dCDN system with canister caching, HTTP outcalls to Pinata, and user tier management. Now I'll create a detailed plan to add encrypt/decrypt functionality without disrupting the existing flow.
+
+## **Encryption/Decryption Implementation Plan**
+
+### **Current Flow Analysis**
+Your current flow is:
+1. **Upload File** → 2. **Canister Cache** → 3. **Canister HTTP Calls** → 4. **Pinata**
+
+### **Proposed Encrypted Flow**
+The new encrypted flow will be:
+1. **Upload File** → 2. **Client-Side Encryption** → 3. **Canister Cache (Ciphertext)** → 4. **Canister HTTP Calls** → 5. **Pinata (Ciphertext)**
+
+### **What We're Implementing**
+
+#### **1. Client-Side Encryption System**
+- **AES-GCM encryption** with per-file keys
+- **RSA-OAEP key wrapping** for secure key storage
+- **Chunk-based streaming encryption** (64KB chunks)
+- **Web Crypto API** for browser-based encryption
+
+#### **2. New Canister Functions**
+- `upload_encrypted_content` - Handle encrypted content uploads
+- `get_encrypted_content` - Return encrypted content for client-side decryption
+- `store_encryption_metadata` - Store encryption metadata separately
+- `validate_encryption_metadata` - Validate encryption parameters
+
+#### **3. Enhanced Data Structures**
+- `EncryptionMetadata` (already exists in your code)
+- `EncryptedCacheEntry` - New structure for encrypted content
+- `UserEncryptionSettings` - User preferences for encryption
+
+### **User Workflow**
+
+#### **Upload Workflow (Encrypted)**
+1. **User selects file** and enables encryption toggle
+2. **Client generates** AES-GCM key for the file
+3. **Client encrypts** file in chunks using AES-GCM
+4. **Client wraps** AES key with user's RSA public key
+5. **Client uploads** ciphertext to canister
+6. **Canister caches** ciphertext and stores metadata
+7. **Canister uploads** ciphertext to Pinata via HTTP calls
+8. **User receives** success confirmation with metadata CID
+
+#### **Download/View Workflow (Encrypted)**
+1. **User requests** encrypted file
+2. **Canister returns** ciphertext and metadata
+3. **Client unwraps** AES key using RSA private key
+4. **Client decrypts** ciphertext in chunks
+5. **Client displays** or downloads decrypted content
+
+### **Implementation Steps**
+
+#### **Phase 1: Backend Canister Functions**
+```rust
+// New canister functions to add
+#[ic_cdk::update]
+async fn upload_encrypted_content(
+    cid: String,
+    encrypted_content: Vec<u8>,
+    encryption_metadata: EncryptionMetadata,
+    filename: String
+) -> Result<String, String>
+
+#[ic_cdk::query]
+fn get_encrypted_content(cid: String) -> Result<(Vec<u8>, EncryptionMetadata), String>
+
+#[ic_cdk::update]
+async fn store_encryption_metadata(
+    cid: String,
+    metadata: EncryptionMetadata
+) -> Result<String, String>
+```
+
+#### **Phase 2: Client-Side Encryption Library**
+```javascript
+// New encryption utilities
+class FileEncryption {
+  static async generateFileKey() // Generate AES-GCM key
+  static async encryptFile(file, key) // Encrypt file in chunks
+  static async decryptFile(encryptedData, key) // Decrypt file
+  static async wrapKey(key, publicKey) // Wrap with RSA
+  static async unwrapKey(wrappedKey, privateKey) // Unwrap with RSA
+}
+```
+
+#### **Phase 3: Frontend Integration**
+- Add encryption toggle to upload components
+- Integrate encryption/decryption into existing upload flow
+- Add encrypted file viewer component
+- Update file management to handle encrypted files
+
+#### **Phase 4: Backend Testing**
+- Test encrypted uploads via canister functions
+- Test encrypted content retrieval
+- Test metadata storage and validation
+- Test integration with existing Pinata flow
+
+### **Key Design Principles**
+
+#### **1. Non-Disruptive Integration**
+- Existing functions remain unchanged
+- New encrypted functions are additive
+- Backward compatibility maintained
+- Optional encryption (toggle-based)
+
+#### **2. Security Model**
+- **End-to-end encryption**: Only client can decrypt
+- **No password required**: Uses key-based authentication
+- **Metadata separation**: Encryption metadata stored separately
+- **Zero-knowledge backend**: Canister never sees plaintext
+
+#### **3. Performance Considerations**
+- **Chunk-based processing**: Handle large files efficiently
+- **Streaming encryption**: Process files without loading entirely into memory
+- **Caching strategy**: Cache encrypted content for performance
+- **Metadata optimization**: Minimal metadata storage
+
+### **Testing Strategy**
+
+#### **Backend Testing**
+1. **Unit tests** for new encryption functions
+2. **Integration tests** with existing upload flow
+3. **Performance tests** for encrypted content handling
+4. **Security tests** for metadata validation
+
+#### **Frontend Testing**
+1. **Encryption/decryption** functionality tests
+2. **File upload** with encryption toggle
+3. **File viewing** of encrypted content
+4. **Key management** and persistence tests
+
+### **Research Requirements**
+
+#### **1. Web Crypto API Integration**
+- Research best practices for AES-GCM in browsers
+- Study RSA-OAEP key wrapping patterns
+- Investigate chunk-based streaming encryption
+
+#### **2. Canister Security**
+- Research secure metadata storage patterns
+- Study encryption parameter validation
+- Investigate secure key handling in canisters
+
+#### **3. Performance Optimization**
+- Research efficient chunk processing
+- Study memory management for large files
+- Investigate caching strategies for encrypted content
+
+### **Next Steps**
+
+1. **Start with backend functions** - Add the new canister functions
+2. **Create encryption utilities** - Build the client-side encryption library
+3. **Test backend integration** - Verify encrypted uploads work with existing flow
+4. **Integrate frontend** - Add encryption toggle and file handling
+5. **Comprehensive testing** - Test the complete encrypted workflow
+
+This plan ensures that your existing upload → cache → HTTP calls → Pinata flow remains completely intact while adding a parallel encrypted workflow that users can optionally enable. The encryption happens entirely on the client side, maintaining the security principle that only the user can decrypt their content.
+
+Would you like me to start implementing any specific part of this plan?

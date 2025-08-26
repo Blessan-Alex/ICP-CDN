@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Upload, FileText, Cloud, Zap, Shield, CheckCircle, AlertCircle, Loader, Crown, Info, Eye, X, Download, ExternalLink } from 'lucide-react';
+import { Upload, FileText, Cloud, Zap, Shield, CheckCircle, AlertCircle, Loader, Crown, Info, Eye, X, Download, ExternalLink, Lock, Unlock } from 'lucide-react';
 import undrawShare from "../assets/undraw_share-link_jr6w.svg";
 import undrawStars from "../assets/undraw_to-the-stars_tz9v.svg";
 import undrawFolderFiles from "../assets/undraw_folder-files_5www.svg";
@@ -8,6 +8,7 @@ import { useAuth } from '../AuthContext';
 import { createActor, canisterId } from '../canister_id_patch';
 import { HttpAgent } from '@dfinity/agent';
 import { initAuth, getIdentity } from '../auth';
+import { FileEncryption } from '../lib/encryption';
 
 export default function EnhancedUpload() {
   const { principal, isLoggedIn } = useAuth();
@@ -24,6 +25,12 @@ export default function EnhancedUpload() {
   const [fileViewerOpen, setFileViewerOpen] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState([]);
   const fileInputRef = useRef(null);
+  
+  // Encryption state
+  const [encryptionEnabled, setEncryptionEnabled] = useState(false);
+  const [encryptionKeys, setEncryptionKeys] = useState(null);
+  const [initializingEncryption, setInitializingEncryption] = useState(false);
+  const [encryptionError, setEncryptionError] = useState(null);
 
   // Initialize backend connection
   React.useEffect(() => {
@@ -60,6 +67,34 @@ export default function EnhancedUpload() {
     };
     initBackend();
   }, [isLoggedIn, principal]);
+
+  // Initialize encryption system
+  React.useEffect(() => {
+    const initEncryption = async () => {
+      if (isLoggedIn) {
+        try {
+          setInitializingEncryption(true);
+          setEncryptionError(null);
+          
+          console.log('Initializing encryption system...');
+          const keys = await FileEncryption.initialize();
+          setEncryptionKeys(keys);
+          console.log('Encryption system initialized successfully');
+        } catch (error) {
+          console.error('Failed to initialize encryption:', error);
+          // Don't set encryption error for IndexedDB issues, just log them
+          if (!error.message.includes('IndexedDB') && !error.message.includes('Keys store not found')) {
+            setEncryptionError(error.message);
+          } else {
+            console.log('IndexedDB not available, encryption will work without persistence');
+          }
+        } finally {
+          setInitializingEncryption(false);
+        }
+      }
+    };
+    initEncryption();
+  }, [isLoggedIn]);
 
   // Load user tier information
   const loadTierInfo = async (backendInstance = backend) => {
@@ -107,7 +142,9 @@ export default function EnhancedUpload() {
         url: `https://gateway.pinata.cloud/ipfs/${file.cid}`,
         gatewayUrl: `https://gateway.pinata.cloud/ipfs/${file.cid}`,
         uploadedAt: new Date(Number(file.uploaded_at) / 1000000).toISOString(), // Convert nanoseconds to milliseconds
-        resultMessage: `Previously uploaded file: ${file.name}`
+        resultMessage: `Previously uploaded file: ${file.name}`,
+        isEncrypted: file.is_encrypted || false,
+        metadataCid: file.metadata_cid || null
       }));
       
       setUploadedFiles(formattedFiles);
@@ -158,6 +195,51 @@ export default function EnhancedUpload() {
     setViewingFile(null);
   };
 
+  // Handle encrypted file viewing
+  const handleEncryptedFileView = async (file) => {
+    if (!file.isEncrypted || !encryptionKeys) {
+      openFileViewer(file);
+      return;
+    }
+
+    try {
+      setUploadStatus(prev => ({ ...prev, [file.name]: '🔐 Decrypting file...' }));
+      
+      // Fetch encrypted content from canister
+      // For encrypted files, use the IPFS hash as the CID since that's where the encrypted content is stored
+      const contentCid = file.ipfsHash || file.cid;
+      const encryptedResult = await backend.get_encrypted_content(contentCid);
+      if (!encryptedResult.Ok) {
+        throw new Error(encryptedResult.Err || 'Failed to retrieve encrypted content');
+      }
+
+      const [encryptedData, metadata] = encryptedResult.Ok;
+      
+      // Decrypt the file
+      const decryptionResult = await FileEncryption.decryptFileComplete(
+        encryptedData,
+        metadata,
+        encryptionKeys.privateKey
+      );
+
+      // Create a decrypted file object for viewing
+      const decryptedFile = {
+        ...file,
+        name: decryptionResult.originalName,
+        type: decryptionResult.originalType,
+        decryptedData: decryptionResult.data,
+        isDecrypted: true
+      };
+
+      setViewingFile(decryptedFile);
+      setFileViewerOpen(true);
+      setUploadStatus(prev => ({ ...prev, [file.name]: '✅ File decrypted successfully' }));
+    } catch (error) {
+      console.error('Decryption error:', error);
+      setUploadStatus(prev => ({ ...prev, [file.name]: `❌ Decryption failed: ${error.message}` }));
+    }
+  };
+
   const getFileIcon = (fileType) => {
     if (fileType.startsWith('image/')) return '🖼️';
     if (fileType.startsWith('video/')) return '🎥';
@@ -177,6 +259,96 @@ export default function EnhancedUpload() {
   };
 
   const renderFilePreview = (file) => {
+    // Handle decrypted data
+    if (file.isDecrypted && file.decryptedData) {
+      if (file.type.startsWith('image/')) {
+        const blob = new Blob([file.decryptedData], { type: file.type });
+        const url = URL.createObjectURL(blob);
+        return (
+          <img 
+            src={url} 
+            alt={file.name} 
+            className="max-w-full max-h-96 object-contain rounded-lg"
+            onError={(e) => {
+              e.target.style.display = 'none';
+              e.target.nextSibling.style.display = 'block';
+            }}
+          />
+        );
+      }
+
+      if (file.type.startsWith('video/')) {
+        const blob = new Blob([file.decryptedData], { type: file.type });
+        const url = URL.createObjectURL(blob);
+        return (
+          <video 
+            controls 
+            className="max-w-full max-h-96 rounded-lg"
+            onError={(e) => {
+              e.target.style.display = 'none';
+              e.target.nextSibling.style.display = 'block';
+            }}
+          >
+            <source src={url} type={file.type} />
+            Your browser does not support the video tag.
+          </video>
+        );
+      }
+
+      if (file.type.startsWith('audio/')) {
+        const blob = new Blob([file.decryptedData], { type: file.type });
+        const url = URL.createObjectURL(blob);
+        return (
+          <audio 
+            controls 
+            className="w-full"
+            onError={(e) => {
+              e.target.style.display = 'none';
+              e.target.nextSibling.style.display = 'block';
+            }}
+          >
+            <source src={url} type={file.type} />
+            Your browser does not support the audio tag.
+          </audio>
+        );
+      }
+
+      if (file.type.includes('text')) {
+        const textContent = new TextDecoder().decode(file.decryptedData);
+        return (
+          <div className="bg-neutral-800 p-4 rounded-lg max-h-96 overflow-auto">
+            <pre className="text-sm text-neutral-300 whitespace-pre-wrap">
+              {textContent}
+            </pre>
+          </div>
+        );
+      }
+
+      // For other file types, provide download option
+      return (
+        <div className="text-center py-8">
+          <div className="text-6xl mb-4">{getFileIcon(file.type)}</div>
+          <p className="text-neutral-400 mb-4">Decrypted file ready for download</p>
+          <button 
+            onClick={() => {
+              const blob = new Blob([file.decryptedData], { type: file.type });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = file.name;
+              a.click();
+              URL.revokeObjectURL(url);
+            }}
+            className="inline-flex items-center gap-2 bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg transition-colors"
+          >
+            <Download className="w-4 h-4" />
+            Download Decrypted File
+          </button>
+        </div>
+      );
+    }
+
+    // Handle regular files (not encrypted)
     if (!file.url) return null;
 
     if (file.type.startsWith('image/')) {
@@ -257,19 +429,57 @@ export default function EnhancedUpload() {
     try {
       setUploadStatus(prev => ({ ...prev, [file.name]: 'Generating CID...' }));
       
-      // Generate CID for the file
-      const cid = await generateCID(file);
+      let fileBytes, cid, originalType, originalName, isEncrypted = false;
+      let metadataCid = null;
       
-      setUploadStatus(prev => ({ ...prev, [file.name]: 'Reading file content...' }));
-      setUploadProgress(prev => ({ ...prev, [file.name]: 25 }));
+      if (encryptionEnabled && encryptionKeys) {
+        // Encrypt the file
+        setUploadStatus(prev => ({ ...prev, [file.name]: '🔐 Encrypting file...' }));
+        setUploadProgress(prev => ({ ...prev, [file.name]: 10 }));
+        
+        const encryptionResult = await FileEncryption.encryptFileComplete(file, encryptionKeys.publicKey);
+        fileBytes = new Uint8Array(encryptionResult.encryptedData);
+        cid = encryptionResult.cid;
+        originalType = file.type;
+        originalName = file.name;
+        isEncrypted = true;
+        
+        // Store encryption metadata
+        setUploadStatus(prev => ({ ...prev, [file.name]: '📋 Storing encryption metadata...' }));
+        setUploadProgress(prev => ({ ...prev, [file.name]: 20 }));
+        
+        const metadataResult = await backend.store_encryption_metadata(cid, encryptionResult.metadata);
+        if (metadataResult.Ok) {
+          // Extract the actual CID from the result message
+          const cidMatch = metadataResult.Ok.match(/Metadata CID: ([A-Za-z0-9]+)/);
+          if (cidMatch) {
+            metadataCid = cidMatch[1];
+            
+            // Update the cache entry with the metadata CID
+            const updateResult = await backend.update_cache_entry_metadata(cid, metadataCid);
+            if (!updateResult.Ok) {
+              console.warn('Failed to update cache entry with metadata CID:', updateResult.Err);
+            }
+          } else {
+            metadataCid = null;
+          }
+        }
+        
+        setUploadStatus(prev => ({ ...prev, [file.name]: 'Reading encrypted content...' }));
+        setUploadProgress(prev => ({ ...prev, [file.name]: 25 }));
+      } else {
+        // Regular upload without encryption
+        cid = await generateCID(file);
+        setUploadStatus(prev => ({ ...prev, [file.name]: 'Reading file content...' }));
+        setUploadProgress(prev => ({ ...prev, [file.name]: 25 }));
 
-      // Read file content for upload
         const reader = new FileReader();
-        const fileBytes = await new Promise((resolve, reject) => {
+        fileBytes = await new Promise((resolve, reject) => {
           reader.onload = () => resolve(new Uint8Array(reader.result));
           reader.onerror = reject;
           reader.readAsArrayBuffer(file);
         });
+      }
 
       setUploadStatus(prev => ({ ...prev, [file.name]: 'Uploading via canister HTTP call...' }));
       setUploadProgress(prev => ({ ...prev, [file.name]: 50 }));
@@ -277,9 +487,9 @@ export default function EnhancedUpload() {
       // Upload using the new canister HTTP call function
       const uploadResult = await backend.upload_content_with_canister_pinata(
         cid,
-          file.type,
+        isEncrypted ? 'application/octet-stream' : file.type, // Use generic type for encrypted content
         Array.from(fileBytes),
-        file.name
+        isEncrypted ? `${file.name}.encrypted` : file.name
       );
 
       if (!uploadResult.Ok) {
@@ -301,14 +511,16 @@ export default function EnhancedUpload() {
 
       // Store metadata for file management (if we have an IPFS hash)
       if (ipfsHash) {
-      const metadataResult = await backend.add_ipfs_file(
-        file.name,
+        const metadataResult = await backend.add_ipfs_file(
+          isEncrypted ? originalName : file.name,
           ipfsHash,
           BigInt(fileBytes.length),
-          file.type
-      );
+          isEncrypted ? originalType : file.type,
+          isEncrypted, // Add encryption flag
+          metadataCid ? [metadataCid] : [] // Add metadata CID if encrypted, format as optional
+        );
 
-      if (!metadataResult.Ok) {
+        if (!metadataResult.Ok) {
           console.warn('Failed to store metadata:', metadataResult.Err);
         }
       }
@@ -316,24 +528,27 @@ export default function EnhancedUpload() {
       setUploadProgress(prev => ({ ...prev, [file.name]: 100 }));
       
       // Update status based on the result
+      const encryptionStatus = isEncrypted ? '🔐 ' : '';
       if (resultMessage.includes('pinned to IPFS')) {
-        setUploadStatus(prev => ({ ...prev, [file.name]: '✅ Uploaded and pinned to IPFS via canister HTTP call!' }));
+        setUploadStatus(prev => ({ ...prev, [file.name]: `${encryptionStatus}✅ Uploaded and pinned to IPFS via canister HTTP call!` }));
       } else if (resultMessage.includes('no pinning')) {
-        setUploadStatus(prev => ({ ...prev, [file.name]: '✅ Uploaded to IPFS (no pinning - free tier) via canister HTTP call!' }));
+        setUploadStatus(prev => ({ ...prev, [file.name]: `${encryptionStatus}✅ Uploaded to IPFS (no pinning - free tier) via canister HTTP call!` }));
       } else {
-        setUploadStatus(prev => ({ ...prev, [file.name]: '✅ Uploaded to cache via canister HTTP call!' }));
+        setUploadStatus(prev => ({ ...prev, [file.name]: `${encryptionStatus}✅ Uploaded to cache via canister HTTP call!` }));
       }
       
       const uploadedFile = {
-        name: file.name,
-        type: file.type,
+        name: isEncrypted ? originalName : file.name,
+        type: isEncrypted ? originalType : file.type,
         size: file.size,
         cid: cid,
         ipfsHash: ipfsHash,
         url: ipfsHash ? `https://gateway.pinata.cloud/ipfs/${ipfsHash}` : null,
         gatewayUrl: ipfsHash ? `https://gateway.pinata.cloud/ipfs/${ipfsHash}` : null,
         uploadedAt: new Date().toISOString(),
-        resultMessage: resultMessage
+        resultMessage: resultMessage,
+        isEncrypted: isEncrypted,
+        metadataCid: metadataCid
       };
 
       // Add to uploaded files list
@@ -344,7 +559,8 @@ export default function EnhancedUpload() {
         cid: cid,
         ipfsHash: ipfsHash,
         gatewayUrl: ipfsHash ? `https://gateway.pinata.cloud/ipfs/${ipfsHash}` : null,
-        resultMessage: resultMessage
+        resultMessage: resultMessage,
+        isEncrypted: isEncrypted
       };
     } catch (error) {
       console.error('Upload error:', error);
@@ -566,6 +782,91 @@ export default function EnhancedUpload() {
           <div className="flex items-center gap-2">
             <Loader className="w-4 h-4 animate-spin text-orange-400" />
             <span className="text-sm text-neutral-400">Loading tier information...</span>
+          </div>
+        </div>
+      )}
+
+      {/* Encryption Settings */}
+      {isLoggedIn && (
+        <div className="mb-6 p-4 bg-neutral-800/30 rounded-lg border border-neutral-600">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              {encryptionEnabled ? <Lock className="w-5 h-5 text-green-400" /> : <Unlock className="w-5 h-5 text-neutral-400" />}
+              File Encryption
+            </h3>
+            <div className="flex items-center gap-2">
+              {initializingEncryption && (
+                <Loader className="w-4 h-4 animate-spin text-orange-400" />
+              )}
+              <button
+                onClick={() => setEncryptionEnabled(!encryptionEnabled)}
+                disabled={initializingEncryption || encryptionError}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 focus:ring-offset-neutral-900 ${
+                  encryptionEnabled ? 'bg-green-600' : 'bg-neutral-600'
+                } ${initializingEncryption || encryptionError ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    encryptionEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+          
+          <div className="text-sm text-neutral-300 space-y-2">
+            {encryptionEnabled ? (
+              <div className="space-y-2">
+                <p className="text-green-400">🔐 <strong>Encryption Enabled:</strong></p>
+                <ul className="ml-4 space-y-1">
+                  <li>• Files encrypted with AES-GCM before upload</li>
+                  <li>• Keys wrapped with your RSA public key</li>
+                  <li>• Only you can decrypt the files</li>
+                  <li>• Metadata stored separately for security</li>
+                </ul>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-neutral-400">🔓 <strong>Encryption Disabled:</strong></p>
+                <ul className="ml-4 space-y-1">
+                  <li>• Files uploaded in plain text</li>
+                  <li>• Faster upload and download</li>
+                  <li>• Files accessible to anyone with the link</li>
+                </ul>
+              </div>
+            )}
+            
+            {encryptionError && (
+              <div className="mt-3 p-2 bg-red-500/10 rounded border border-red-500/20">
+                <p className="text-red-300 text-xs">
+                  ❌ <strong>Encryption Error:</strong> {encryptionError}
+                </p>
+                <button
+                  onClick={async () => {
+                    try {
+                      await FileEncryption.clearKeys();
+                      setEncryptionError(null);
+                      setInitializingEncryption(true);
+                      const keys = await FileEncryption.initialize();
+                      setEncryptionKeys(keys);
+                      setInitializingEncryption(false);
+                    } catch (error) {
+                      console.error('Failed to reset encryption keys:', error);
+                      // Don't show IndexedDB errors to user
+                      if (!error.message.includes('IndexedDB') && !error.message.includes('Keys store not found')) {
+                        setEncryptionError(error.message);
+                      } else {
+                        console.log('IndexedDB not available, continuing without persistence');
+                      }
+                      setInitializingEncryption(false);
+                    }
+                  }}
+                  className="mt-2 text-xs bg-red-600 hover:bg-red-700 px-2 py-1 rounded transition-colors"
+                >
+                  Reset Encryption Keys
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -799,27 +1100,33 @@ export default function EnhancedUpload() {
                    <div className="flex items-center gap-2">
                      <span className="text-2xl">{getFileIcon(file.type)}</span>
                      <div className="min-w-0 flex-1">
-                       <p className="font-medium text-white text-sm truncate" title={file.name}>
-                         {file.name}
-                       </p>
+                       <div className="flex items-center gap-2">
+                         <p className="font-medium text-white text-sm truncate" title={file.name}>
+                           {file.name}
+                         </p>
+                         {file.isEncrypted && (
+                           <Lock className="w-3 h-3 text-green-400" title="Encrypted file" />
+                         )}
+                       </div>
                        <p className="text-xs text-neutral-400">
                          {formatBytes(file.size)} • {new Date(file.uploadedAt).toLocaleDateString()}
+                         {file.isEncrypted && " • 🔐 Encrypted"}
                        </p>
                      </div>
                    </div>
                  </div>
                  
                  <div className="flex items-center gap-2">
-                   {canPreviewFile(file.type) && file.url && (
+                   {(canPreviewFile(file.type) && file.url) || file.isEncrypted ? (
                      <button
-                       onClick={() => openFileViewer(file)}
+                       onClick={() => handleEncryptedFileView(file)}
                        className="flex items-center gap-1 text-xs bg-blue-500 hover:bg-blue-600 px-2 py-1 rounded transition-colors"
-                       title="View file"
+                       title={file.isEncrypted ? "Decrypt and view file" : "View file"}
                      >
-                       <Eye className="w-3 h-3" />
-                       View
+                       {file.isEncrypted ? <Lock className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+                       {file.isEncrypted ? "Decrypt" : "View"}
                      </button>
-                   )}
+                   ) : null}
                    
                    {file.url && (
                      <a

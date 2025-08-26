@@ -4,6 +4,19 @@ type IpfsFile = record {
     size: nat64;
     content_type: text;
     uploaded_at: nat64;
+    is_encrypted: bool;
+    metadata_cid: opt text;
+};
+
+type EncryptionMetadata = record {
+    version: nat32;
+    algorithm: text;
+    chunk_size: nat32;
+    iv_base: text;
+    wrapped_key: text;
+    original_name: text;
+    original_type: text;
+    ciphertext_cid: text;
 };
 
 type CacheEntry = record {
@@ -12,6 +25,8 @@ type CacheEntry = record {
     size: nat64;
     last_accessed_ts: nat64;
     bytes: vec nat8;
+    is_encrypted: bool;
+    metadata_cid: opt text;
 };
 
 type UserTier = variant {
@@ -27,6 +42,7 @@ type UserAccount = record {
     tier: UserTier;
     cache_usage_bytes: nat64;
     pinata_enabled: bool;
+    encryption_enabled: bool;
 };
 
 type UserTierInfo = record {
@@ -66,7 +82,7 @@ type CachedImageInfo = record {
 };
 
 service : {
-    "add_ipfs_file": (text, text, nat64, text) -> (variant { Ok : text; Err : text });
+    "add_ipfs_file": (text, text, nat64, text, bool, opt text) -> (variant { Ok : text; Err : text });
     "list_ipfs_files": () -> (vec IpfsFile) query;
     "delete_ipfs_file": (text) -> (variant { Ok : text; Err : text });
     "greet": (text) -> (text) query;
@@ -140,4 +156,13 @@ service : {
     "canister_estimate_storage_cost": (nat64, nat64) -> (nat) query;
     "canister_get_account_info": (principal) -> (record { user_principal : principal; cycles_balance : nat; tier : UserTier; cache_usage_bytes : nat64; pinata_enabled : bool; }) query;
     "canister_deposit_cycles": (principal, nat) -> (record { user_principal : principal; cycles_balance : nat; tier : UserTier; cache_usage_bytes : nat64; pinata_enabled : bool; });
+    
+    // Encryption Functions
+    "upload_encrypted_content": (text, vec nat8, EncryptionMetadata, text) -> (variant { Ok : text; Err : text });
+    "get_encrypted_content": (text) -> (variant { Ok : record { 0 : vec nat8; 1 : EncryptionMetadata; }; Err : text }) query;
+    "store_encryption_metadata": (text, EncryptionMetadata) -> (variant { Ok : text; Err : text });
+    "update_cache_entry_metadata": (text, text) -> (variant { Ok : text; Err : text });
+    "validate_encryption_metadata": (EncryptionMetadata) -> (variant { Ok : bool; Err : text }) query;
+    "canister_upload_encrypted": (principal, vec nat8, EncryptionMetadata, nat) -> (variant { Ok : text; Err : text });
+    "canister_get_encrypted_content": (principal, text) -> (variant { Ok : record { 0 : vec nat8; 1 : EncryptionMetadata; }; Err : text }) query;
 }
