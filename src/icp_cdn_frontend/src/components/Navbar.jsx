@@ -112,13 +112,13 @@ const Navbar = () => {
                   <span>Features</span>
                   <IoIosArrowDown className="inline ml-1 w-4 h-4 transform transition-transform duration-200 group-hover:rotate-180" />
                 </button>
-                <div className="absolute left-0 mt-2 w-48 rounded-md border border-neutral-700 bg-neutral-900 text-white shadow-lg hidden group-hover:block z-50">
-                  <div className="py-2">
+                <div className="absolute left-0 mt-2 w-56 rounded-md border border-neutral-700 bg-neutral-900 text-white shadow-lg hidden group-hover:block z-50">
+                  <div className="py-3">
                     {enhancedNavItems.map((subItem, subIndex) => (
                       <button
                         key={subIndex}
                         onClick={() => handleNavClick(subItem.href, subItem.type)}
-                        className="block w-full text-left px-4 py-2 text-sm hover:bg-neutral-800 focus:outline-none"
+                        className="block w-full text-left px-5 py-3 text-sm hover:bg-neutral-800 focus:outline-none transition-colors duration-200"
                       >
                         {subItem.label}
                       </button>
