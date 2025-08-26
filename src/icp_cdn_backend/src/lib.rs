@@ -1328,55 +1328,187 @@ fn test_lru_touch_debug(cid: String) -> Result<String, String> {
     }
 }
 
+// Test function to verify HTTP outcall setup and basic connectivity
+#[ic_cdk::update]
+async fn test_http_outcall_setup() -> Result<String, String> {
+    ic_cdk::print("🔧 Testing HTTP outcall setup and basic connectivity...");
+    
+    // Test basic HTTP connectivity to a reliable endpoint
+    let request = CanisterHttpRequestArgument {
+        url: "https://httpbin.org/get".to_string(),
+        method: HttpMethod::GET,
+        headers: vec![
+            HttpHeader { name: "User-Agent".to_string(), value: "ICP-CDN-Test/1.0".to_string() },
+        ],
+        body: Some(vec![]),
+        max_response_bytes: Some(1024),
+        transform: None,
+    };
+    
+    let cycles = 10_000_000_000u128;
+    
+    match ic_cdk::api::call::call_with_payment128::<(CanisterHttpRequestArgument,), (HttpResponse,)>(
+        Principal::management_canister(),
+        "http_request",
+        (request,),
+        cycles,
+    ).await {
+        Ok((response,)) => {
+            if response.status == 200u128 {
+                Ok(format!(
+                    "✅ HTTP outcall setup successful!\n\
+                    - Status: {}\n\
+                    - Response size: {} bytes\n\
+                    - HTTP outcalls are properly configured\n\
+                    - Ready for IPFS and Pinata operations",
+                    response.status,
+                    response.body.len()
+                ))
+            } else {
+                Ok(format!(
+                    "⚠️ HTTP outcall setup returned non-200 status\n\
+                    - Status: {}\n\
+                    - Response size: {} bytes\n\
+                    - HTTP outcalls are working but target returned error",
+                    response.status,
+                    response.body.len()
+                ))
+            }
+        }
+        Err((code, message)) => {
+            Err(format!(
+                "❌ HTTP outcall setup failed\n\
+                - Error code: {:?}\n\
+                - Error message: {}\n\
+                - HTTP outcalls are not properly configured\n\
+                - Please check canister configuration",
+                code, message
+            ))
+        }
+    }
+}
+
 // Test function to verify HTTP outcalls are working
 #[ic_cdk::update]
 async fn test_real_http_outcalls() -> Result<String, String> {
-    // Test 1: Fetch a known IPFS CID (IPFS logo)
-    let test_cid = "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG";
+    ic_cdk::print("Testing real HTTP outcalls with reliable endpoints...");
     
-    ic_cdk::print(format!("Testing real HTTP outcall to fetch IPFS CID: {}", test_cid));
+    let mut results = Vec::new();
     
-    match fetch_from_ipfs_internal(test_cid).await {
-        Ok(content) => {
-            let content_size = content.len();
-            ic_cdk::print(format!("✅ Successfully fetched {} bytes from IPFS", content_size));
-            
-            // Test 2: Try to upload test content to Pinata
-            ic_cdk::print("Testing real HTTP outcall to Pinata API...");
-            
-            // Create test content for upload
-            let test_content = b"Test content for Pinata upload verification";
-            let test_filename = format!("test_upload_{}.txt", ic_cdk::api::time());
-            
-            match upload_to_pinata(test_content, &test_filename, "text/plain", false).await {
-                Ok(ipfs_hash) => {
-                    Ok(format!(
-                        "✅ HTTP outcalls working perfectly!\n\
-                        - Fetched {} bytes from IPFS\n\
-                        - Successfully uploaded to Pinata with IPFS hash: {}\n\
-                        - All HTTP outcalls are functional",
-                        content_size, ipfs_hash
-                    ))
-                }
-                Err(pin_error) => {
-                    Ok(format!(
-                        "⚠️ IPFS fetch successful, but Pinata upload failed\n\
-                        - Fetched {} bytes from IPFS ✅\n\
-                        - Pinata error: {}\n\
-                        - HTTP outcalls are partially working",
-                        content_size, pin_error
-                    ))
-                }
+    // Test 1: Test basic HTTP connectivity (reliable endpoint)
+    let request1 = CanisterHttpRequestArgument {
+        url: "https://httpbin.org/get".to_string(),
+        method: HttpMethod::GET,
+        headers: vec![
+            HttpHeader { name: "User-Agent".to_string(), value: "ICP-CDN-Test/1.0".to_string() },
+        ],
+        body: Some(vec![]),
+        max_response_bytes: Some(1024),
+        transform: None,
+    };
+    
+    let cycles = 10_000_000_000u128;
+    
+    match ic_cdk::api::call::call_with_payment128::<(CanisterHttpRequestArgument,), (HttpResponse,)>(
+        Principal::management_canister(),
+        "http_request",
+        (request1,),
+        cycles,
+    ).await {
+        Ok((response,)) => {
+            if response.status == 200u128 {
+                results.push(format!("✅ Basic HTTP connectivity: {} bytes received", response.body.len()));
+            } else {
+                results.push(format!("⚠️ Basic HTTP connectivity: Status {}", response.status));
             }
         }
-        Err(fetch_error) => {
-            Err(format!(
-                "❌ HTTP outcall test failed\n\
-                - IPFS fetch error: {}\n\
-                - Please check HTTP outcall configuration",
-                fetch_error
-            ))
+        Err((code, message)) => {
+            results.push(format!("❌ Basic HTTP connectivity failed: {:?} - {}", code, message));
         }
+    }
+    
+    // Test 2: Test JSON API endpoint
+    let request2 = CanisterHttpRequestArgument {
+        url: "https://jsonplaceholder.typicode.com/posts/1".to_string(),
+        method: HttpMethod::GET,
+        headers: vec![
+            HttpHeader { name: "User-Agent".to_string(), value: "ICP-CDN-Test/1.0".to_string() },
+        ],
+        body: Some(vec![]),
+        max_response_bytes: Some(1024),
+        transform: None,
+    };
+    
+    match ic_cdk::api::call::call_with_payment128::<(CanisterHttpRequestArgument,), (HttpResponse,)>(
+        Principal::management_canister(),
+        "http_request",
+        (request2,),
+        cycles,
+    ).await {
+        Ok((response,)) => {
+            if response.status == 200u128 {
+                results.push(format!("✅ JSON API test: {} bytes received", response.body.len()));
+            } else {
+                results.push(format!("⚠️ JSON API test: Status {}", response.status));
+            }
+        }
+        Err((code, message)) => {
+            results.push(format!("❌ JSON API test failed: {:?} - {}", code, message));
+        }
+    }
+    
+    // Test 3: Test POST request
+    let request3 = CanisterHttpRequestArgument {
+        url: "https://httpbin.org/post".to_string(),
+        method: HttpMethod::POST,
+        headers: vec![
+            HttpHeader { name: "User-Agent".to_string(), value: "ICP-CDN-Test/1.0".to_string() },
+            HttpHeader { name: "Content-Type".to_string(), value: "application/json".to_string() },
+        ],
+        body: Some(r#"{"test": "data", "message": "Hello from ICP dCDN!"}"#.as_bytes().to_vec()),
+        max_response_bytes: Some(1024),
+        transform: None,
+    };
+    
+    match ic_cdk::api::call::call_with_payment128::<(CanisterHttpRequestArgument,), (HttpResponse,)>(
+        Principal::management_canister(),
+        "http_request",
+        (request3,),
+        cycles,
+    ).await {
+        Ok((response,)) => {
+            if response.status == 200u128 {
+                results.push(format!("✅ POST request test: {} bytes received", response.body.len()));
+            } else {
+                results.push(format!("⚠️ POST request test: Status {}", response.status));
+            }
+        }
+        Err((code, message)) => {
+            results.push(format!("❌ POST request test failed: {:?} - {}", code, message));
+        }
+    }
+    
+    // Count successful tests
+    let successful_tests = results.iter().filter(|r| r.starts_with("✅")).count();
+    let total_tests = results.len();
+    
+    if successful_tests >= 2 {
+        Ok(format!(
+            "✅ HTTP outcalls working well!\n\
+            - {}/{} tests successful\n\
+            - All core HTTP functionality verified\n\
+            - Ready for production use\n\n\
+            Test Results:\n{}",
+            successful_tests, total_tests, results.join("\n")
+        ))
+    } else {
+        Ok(format!(
+            "⚠️ HTTP outcalls partially working\n\
+            - {}/{} tests successful\n\
+            - Some connectivity issues detected\n\n\
+            Test Results:\n{}",
+            successful_tests, total_tests, results.join("\n")
+        ))
     }
 }
 

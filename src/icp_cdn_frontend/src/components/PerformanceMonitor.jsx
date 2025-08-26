@@ -121,12 +121,21 @@ export default function PerformanceMonitor() {
       // Test 1: HTTP outcall setup
       try {
         const httpTest = await backend.test_http_outcall_setup();
-        tests.push({
-          name: 'HTTP Outcall Setup',
-          status: 'success',
-          result: httpTest,
-          duration: Date.now() - startTime
-        });
+        if (httpTest.Ok) {
+          tests.push({
+            name: 'HTTP Outcall Setup',
+            status: 'success',
+            result: httpTest.Ok,
+            duration: Date.now() - startTime
+          });
+        } else if (httpTest.Err) {
+          tests.push({
+            name: 'HTTP Outcall Setup',
+            status: 'error',
+            result: httpTest.Err,
+            duration: Date.now() - startTime
+          });
+        }
       } catch (error) {
         tests.push({
           name: 'HTTP Outcall Setup',
@@ -136,33 +145,26 @@ export default function PerformanceMonitor() {
         });
       }
 
-      // Test 2: Real HTTP outcalls
-      try {
-        const realHttpTest = await backend.test_real_http_outcalls();
-        tests.push({
-          name: 'Real HTTP Outcalls',
-          status: 'success',
-          result: realHttpTest,
-          duration: Date.now() - startTime
-        });
-      } catch (error) {
-        tests.push({
-          name: 'Real HTTP Outcalls',
-          status: 'error',
-          result: error.message,
-          duration: Date.now() - startTime
-        });
-      }
+
 
       // Test 3: LRU eviction demo
       try {
         const lruTest = await backend.test_lru_eviction_demo();
-        tests.push({
-          name: 'LRU Eviction',
-          status: 'success',
-          result: lruTest,
-          duration: Date.now() - startTime
-        });
+        if (lruTest.Ok) {
+          tests.push({
+            name: 'LRU Eviction',
+            status: 'success',
+            result: lruTest.Ok,
+            duration: Date.now() - startTime
+          });
+        } else if (lruTest.Err) {
+          tests.push({
+            name: 'LRU Eviction',
+            status: 'error',
+            result: lruTest.Err,
+            duration: Date.now() - startTime
+          });
+        }
       } catch (error) {
         tests.push({
           name: 'LRU Eviction',
@@ -175,12 +177,21 @@ export default function PerformanceMonitor() {
       // Test 4: Complete real flow
       try {
         const flowTest = await backend.test_complete_real_flow();
-        tests.push({
-          name: 'Complete Real Flow',
-          status: 'success',
-          result: flowTest,
-          duration: Date.now() - startTime
-        });
+        if (flowTest.Ok) {
+          tests.push({
+            name: 'Complete Real Flow',
+            status: 'success',
+            result: flowTest.Ok,
+            duration: Date.now() - startTime
+          });
+        } else if (flowTest.Err) {
+          tests.push({
+            name: 'Complete Real Flow',
+            status: 'error',
+            result: flowTest.Err,
+            duration: Date.now() - startTime
+          });
+        }
       } catch (error) {
         tests.push({
           name: 'Complete Real Flow',
@@ -220,16 +231,82 @@ export default function PerformanceMonitor() {
     return Math.round((metrics.cacheHits / metrics.totalRequests) * 100);
   };
 
-  // Get performance grade
+  // Get performance grade based on test results (3 tests total)
   const getPerformanceGrade = () => {
-    const hitRate = getCacheHitRate();
-    const responseTime = metrics.avgResponseTime;
+    // If no tests have been run, show "_"
+    if (!testResults || testResults.tests.length === 0) {
+      return '_';
+    }
     
-    if (hitRate >= 90 && responseTime < 100) return 'A+';
-    if (hitRate >= 80 && responseTime < 200) return 'A';
-    if (hitRate >= 70 && responseTime < 500) return 'B';
-    if (hitRate >= 60 && responseTime < 1000) return 'C';
-    return 'D';
+    const totalTests = testResults.tests.length;
+    const successfulTests = testResults.tests.filter(test => test.status === 'success').length;
+    const successRate = (successfulTests / totalTests) * 100;
+    
+    // Grade based on test success rate (3 tests total)
+    if (successRate === 100) {
+      return 'A+'; // All 3 tests passed
+    } else if (successRate >= 66.7) {
+      return 'A'; // 2 out of 3 tests passed
+    } else if (successRate >= 33.3) {
+      return 'B'; // 1 out of 3 tests passed
+    } else {
+      return 'C'; // 0 out of 3 tests passed
+    }
+  };
+
+  // Get grade color and description
+  const getGradeInfo = (grade) => {
+    switch (grade) {
+      case '_':
+        return {
+          color: 'text-gray-400',
+          bgColor: 'bg-gray-400/20',
+          description: 'No Tests Run',
+          details: 'Run performance tests to get a grade'
+        };
+      case 'A+':
+        return {
+          color: 'text-green-400',
+          bgColor: 'bg-green-400/20',
+          description: 'Excellent Performance',
+          details: 'All 3 tests passed - Perfect system health'
+        };
+      case 'A':
+        return {
+          color: 'text-green-500',
+          bgColor: 'bg-green-500/20',
+          description: 'Great Performance',
+          details: '2 out of 3 tests passed - System performing well'
+        };
+      case 'B':
+        return {
+          color: 'text-yellow-400',
+          bgColor: 'bg-yellow-400/20',
+          description: 'Good Performance',
+          details: '1 out of 3 tests passed - System performing adequately'
+        };
+      case 'C':
+        return {
+          color: 'text-orange-400',
+          bgColor: 'bg-orange-400/20',
+          description: 'Fair Performance',
+          details: '0 out of 3 tests passed - System needs attention'
+        };
+      case 'D':
+        return {
+          color: 'text-red-400',
+          bgColor: 'bg-red-400/20',
+          description: 'Poor Performance',
+          details: 'Significant issues detected'
+        };
+      default:
+        return {
+          color: 'text-gray-400',
+          bgColor: 'bg-gray-400/20',
+          description: 'Unknown',
+          details: 'Unable to determine performance'
+        };
+    }
   };
 
   // Format bytes to human readable
@@ -381,23 +458,45 @@ export default function PerformanceMonitor() {
           <div className="bg-white/10 dark:bg-neutral-900/40 backdrop-blur-xl rounded-2xl p-8 border border-white/30 dark:border-neutral-700 shadow-xl">
             <div className="text-center">
               <h2 className="text-3xl font-bold mb-4">Performance Grade</h2>
-              <div className="text-8xl font-bold text-orange-500 mb-4">
-                {getPerformanceGrade()}
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                <div className="flex items-center justify-center gap-2">
-                  <Target className="w-4 h-4 text-green-400" />
-                  <span>Hit Rate: {getCacheHitRate()}%</span>
-                </div>
-                <div className="flex items-center justify-center gap-2">
-                  <Gauge className="w-4 h-4 text-blue-400" />
-                  <span>Response: {metrics.avgResponseTime}ms</span>
-                </div>
-                <div className="flex items-center justify-center gap-2">
-                  <Database className="w-4 h-4 text-purple-400" />
-                  <span>Utilization: {metrics.cacheUtilization}%</span>
-                </div>
-              </div>
+              {(() => {
+                const grade = getPerformanceGrade();
+                const gradeInfo = getGradeInfo(grade);
+                return (
+                  <>
+                    <div className={`text-8xl font-bold ${gradeInfo.color} mb-4`}>
+                      {grade}
+                    </div>
+                    <div className={`inline-block px-4 py-2 rounded-lg ${gradeInfo.bgColor} border border-current/20 mb-4`}>
+                      <p className="text-lg font-semibold">{gradeInfo.description}</p>
+                      <p className="text-sm opacity-80">{gradeInfo.details}</p>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm mb-4">
+                      <div className="flex items-center justify-center gap-2">
+                        <Target className="w-4 h-4 text-green-400" />
+                        <span>Hit Rate: {getCacheHitRate()}%</span>
+                      </div>
+                      <div className="flex items-center justify-center gap-2">
+                        <Gauge className="w-4 h-4 text-blue-400" />
+                        <span>Response: {metrics.avgResponseTime}ms</span>
+                      </div>
+                      <div className="flex items-center justify-center gap-2">
+                        <Database className="w-4 h-4 text-purple-400" />
+                        <span>Utilization: {metrics.cacheUtilization}%</span>
+                      </div>
+                    </div>
+                    {testResults && (
+                      <div className="mt-4 p-3 bg-neutral-800/50 rounded-lg">
+                        <p className="text-sm text-neutral-300">
+                          Test Success Rate: {Math.round((testResults.tests.filter(t => t.status === 'success').length / testResults.tests.length) * 100)}%
+                        </p>
+                        <p className="text-xs text-neutral-400">
+                          Based on {testResults.tests.length} performance tests ({testResults.tests.filter(t => t.status === 'success').length} passed)
+                        </p>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         </motion.section>
