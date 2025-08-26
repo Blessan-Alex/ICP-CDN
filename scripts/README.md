@@ -69,8 +69,8 @@ VITE_PINATA_GATEWAY=<your_gateway_domain.mypinata.cloud>
    ./scripts/deployment/deploy_with_env.sh
    ```
 
-3. Start the Pinata backend server:
+3. Start the frontend:
    ```bash
-   cd pinata_backend
-   node server.js
+   cd src/icp_cdn_frontend
+   npm run dev
    ``` 

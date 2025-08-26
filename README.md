@@ -32,14 +32,11 @@ git clone <repository-url>
 cd icp_cdn
 ```
 
-### 3. **Install npm Dependencies**
+### 3. **Install Dependencies**
 ```bash
 # Frontend
 cd src/icp_cdn_frontend && npm install
-cd ../../..
-# Backend
-cd pinata_backend && npm install
-cd ..
+cd ../..
 # Rust dependencies
 cargo build
 ```
@@ -72,13 +69,7 @@ dfx generate
 # Then re-run the deploy script.
 ```
 
-### 8. **Start Backend Server**
-```bash
-cd pinata_backend
-node server.js
-```
-
-### 9. **Start Frontend**
+### 8. **Start Frontend**
 ```bash
 cd src/icp_cdn_frontend
 npm run dev
@@ -112,7 +103,6 @@ cd icp_cdn
 ### 3. **Install Dependencies**
 ```bash
 cd src/icp_cdn_frontend && npm install
-cd ../../pinata_backend && npm install
 cd .. && cargo build
 ```
 
@@ -132,13 +122,7 @@ dfx start --background
 ./scripts/deployment/full_deploy.sh
 ```
 
-### 7. **Start Backend Server**
-```bash
-cd pinata_backend
-node server.js
-```
-
-### 8. **Start Frontend**
+### 7. **Start Frontend**
 ```bash
 cd src/icp_cdn_frontend
 npm run dev
@@ -160,7 +144,7 @@ icp_cdn/
 ├── src/
 │   ├── icp_cdn_backend/     # Rust backend canister
 │   └── icp_cdn_frontend/    # React frontend
-├── pinata_backend/          # Express backend server
+
 ├── scripts/                 # Deployment and utility scripts
 ```
 

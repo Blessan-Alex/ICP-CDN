@@ -43,5 +43,4 @@ echo "Updated frontend .env file."
 # 5. Print next steps
 echo "\n✅ Deployment complete!"
 echo "Next steps:"
-echo "1. Start backend server: cd pinata_backend && node server.js"
-echo "2. Start frontend: cd src/icp_cdn_frontend && npm run dev" 
+echo "1. Start frontend: cd src/icp_cdn_frontend && npm run dev" 

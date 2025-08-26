@@ -324,7 +324,6 @@ cd icp_cdn
 
 # 2. Install dependencies
 cd src/icp_cdn_frontend && npm install
-cd ../../pinata_backend && npm install
 cd .. && cargo build
 
 # 3. Deploy
@@ -332,8 +331,7 @@ cd .. && cargo build
 
 # 4. Start services
 dfx start --background
-cd pinata_backend && node server.js
-cd ../src/icp_cdn_frontend && npm run dev
+cd src/icp_cdn_frontend && npm run dev
 ```
 
 ### **Environment Configuration**

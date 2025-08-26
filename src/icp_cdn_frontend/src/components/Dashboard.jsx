@@ -37,6 +37,37 @@ const getFileIcon = (file) => {
   return <FileIcon className="w-6 h-6 text-orange-400" />;
 };
 
+// Generate CID for file (same as in EnhancedUpload)
+const generateCID = async (file) => {
+  const arrayBuffer = await file.arrayBuffer();
+  const uint8Array = new Uint8Array(arrayBuffer);
+  
+  // Simple hash function for demo purposes
+  let hash = 0;
+  for (let i = 0; i < uint8Array.length; i++) {
+    const char = uint8Array[i];
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  
+  // Convert to base58-like string (simplified)
+  const base58Chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
+  let num = Math.abs(hash);
+  let cid = '';
+  
+  while (num > 0) {
+    cid = base58Chars[num % base58Chars.length] + cid;
+    num = Math.floor(num / base58Chars.length);
+  }
+  
+  // Ensure minimum length and add prefix
+  while (cid.length < 10) {
+    cid = '1' + cid;
+  }
+  
+  return 'Qm' + cid;
+};
+
 export default function Dashboard() {
   const { principal, isLoggedIn } = useAuth();
   const [uploading, setUploading] = useState(false);
@@ -170,76 +201,51 @@ export default function Dashboard() {
     setPathMap(prev => ({ ...prev, [name]: value }));
   };
 
-  // Limited parallel upload queue
+  // Enhanced upload using canister HTTP calls to Pinata
   const uploadSingleFile = async (file) => {
-    setFileStatus(prev => ({ ...prev, [file.name]: 'Uploading...' }));
+    setFileStatus(prev => ({ ...prev, [file.name]: 'Generating CID...' }));
     try {
-      // 1. Upload to backend /upload endpoint
-      const formData = new FormData();
-      formData.append('file', file);
-      const xhr = new XMLHttpRequest();
-      let timedOut = false;
-      const uploadPromise = new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          timedOut = true;
-          xhr.abort();
-          setFileStatus(prev => ({ ...prev, [file.name]: '❌ Upload timed out' }));
-          reject(new Error('Upload timed out'));
-        }, 60000); // 60s timeout
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) {
-            const percent = Math.round((event.loaded / event.total) * 100);
-            setFileProgress(prev => ({ ...prev, [file.name]: percent }));
-          }
-        };
-        xhr.onload = async () => {
-          clearTimeout(timeout);
-          if (timedOut) return;
-          if (xhr.status === 200) {
-            const data = JSON.parse(xhr.responseText);
-            if (!data.success) {
-              setFileStatus(prev => ({ ...prev, [file.name]: '❌ Upload failed' }));
-              reject(new Error(data.error || 'Backend upload failed'));
-              return;
-            }
-            setFileProgress(prev => ({ ...prev, [file.name]: 100 }));
-            setFileStatus(prev => ({ ...prev, [file.name]: 'Storing metadata...' }));
-            // 2. Store metadata in backend canister
-            const backend = backendRef.current;
-            if (!backend) {
-              setFileStatus(prev => ({ ...prev, [file.name]: '❌ No backend' }));
-              reject(new Error('No authenticated backend available'));
-              return;
-            }
-            const result = await backend.add_ipfs_file(
-              data.fileName,
-              data.ipfsHash,
-              BigInt(data.size),
-              data.contentType
-            );
-            if (!result.Ok) {
-              setFileStatus(prev => ({ ...prev, [file.name]: '❌ Metadata store failed' }));
-              reject(new Error(result.Err || 'Backend metadata store failed'));
-              return;
-            }
-            setFileStatus(prev => ({ ...prev, [file.name]: '✅ Uploaded!' }));
-            resolve();
-          } else {
-            setFileStatus(prev => ({ ...prev, [file.name]: '❌ Upload failed' }));
-            reject(new Error('Upload failed'));
-          }
-        };
-        xhr.onerror = () => {
-          clearTimeout(timeout);
-          setFileStatus(prev => ({ ...prev, [file.name]: '❌ Upload failed' }));
-          reject(new Error('Upload failed'));
-        };
-        xhr.open('POST', 'http://localhost:8787/upload');
-        xhr.send(formData);
+      const backend = backendRef.current;
+      if (!backend) {
+        setFileStatus(prev => ({ ...prev, [file.name]: '❌ No backend' }));
+        throw new Error('No authenticated backend available');
+      }
+
+      // Generate CID for the file
+      const cid = await generateCID(file);
+      
+      setFileStatus(prev => ({ ...prev, [file.name]: 'Reading file content...' }));
+      setFileProgress(prev => ({ ...prev, [file.name]: 25 }));
+
+      // Read file content for upload
+      const reader = new FileReader();
+      const fileBytes = await new Promise((resolve, reject) => {
+        reader.onload = () => resolve(new Uint8Array(reader.result));
+        reader.onerror = reject;
+        reader.readAsArrayBuffer(file);
       });
-      await uploadPromise;
+
+      setFileStatus(prev => ({ ...prev, [file.name]: 'Uploading via canister HTTP call...' }));
+      setFileProgress(prev => ({ ...prev, [file.name]: 50 }));
+
+      // Upload using the new canister HTTP call function
+      const uploadResult = await backend.upload_content_with_canister_pinata(
+        cid,
+        file.type,
+        Array.from(fileBytes),
+        file.name
+      );
+
+      if (!uploadResult.Ok) {
+        setFileStatus(prev => ({ ...prev, [file.name]: '❌ Upload failed' }));
+        throw new Error(uploadResult.Err || 'Upload via canister HTTP call failed');
+      }
+
+      setFileProgress(prev => ({ ...prev, [file.name]: 100 }));
+      setFileStatus(prev => ({ ...prev, [file.name]: '✅ Uploaded!' }));
     } catch (e) {
-      // Error already handled above
+      setFileStatus(prev => ({ ...prev, [file.name]: `❌ ${e.message}` }));
+      console.error('Upload error:', e);
     }
   };
 
