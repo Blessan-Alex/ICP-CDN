@@ -450,15 +450,30 @@ export default function EnhancedUpload() {
   };
 
   return (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }} 
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white/10 dark:bg-neutral-900/40 backdrop-blur-xl rounded-2xl p-8 border border-white/30 dark:border-neutral-700 shadow-xl"
-    >
-      <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
-        <Zap className="w-6 h-6 text-orange-500" />
-        Enhanced dCDN Upload
-      </h2>
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen bg-neutral-950 text-white pt-20">
+      {/* Background Pattern */}
+      <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 via-transparent to-orange-800/5 z-0"></div>
+      
+      <div className="relative z-10 max-w-7xl mx-auto px-6">
+        {/* Welcome Section */}
+        <motion.section initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="py-10 text-center">
+          <motion.div className="bg-gradient-to-r from-orange-500/10 to-orange-800/10 rounded-2xl p-8 border border-orange-500/20 mb-8 shadow-xl shadow-orange-900/10">
+            <h1 className="text-4xl font-bold mb-2">Welcome to Your Decentralized CDN!</h1>
+            <p className="text-lg text-neutral-400 mb-2">Upload, manage, and deliver your web assets globally, powered by the Internet Computer.</p>
+            {principal && (
+              <p className="text-sm text-neutral-500 mt-2">
+                Logged in as: <span className="font-mono text-orange-400">{principal.toString()}</span>
+              </p>
+            )}
+          </motion.div>
+        </motion.section>
+
+        {/* Upload Section */}
+        <motion.section initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="bg-white/10 dark:bg-neutral-900/40 backdrop-blur-xl rounded-2xl p-8 border border-white/30 dark:border-neutral-700 shadow-xl">
+          <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
+            <Zap className="w-6 h-6 text-orange-500" />
+            Enhanced dCDN Upload
+          </h2>
       
       <div className="mb-6 p-4 bg-gradient-to-r from-orange-500/10 to-orange-800/10 rounded-lg border border-orange-500/20">
         <div className="flex items-center gap-2 mb-2">
@@ -906,12 +921,14 @@ export default function EnhancedUpload() {
          </motion.div>
        )}
 
-       {/* Upload Info */}
-       <div className="mt-4 p-3 bg-neutral-800/30 rounded-lg">
-         <p className="text-sm text-neutral-400">
-           <strong>Note:</strong> Files are automatically pinned to IPFS and cached in the dCDN for fast global delivery.
-         </p>
-       </div>
+               {/* Upload Info */}
+        <div className="mt-4 p-3 bg-neutral-800/30 rounded-lg">
+          <p className="text-sm text-neutral-400">
+            <strong>Note:</strong> Files are automatically pinned to IPFS and cached in the dCDN for fast global delivery.
+          </p>
+        </div>
+        </motion.section>
+      </div>
     </motion.div>
   );
 }

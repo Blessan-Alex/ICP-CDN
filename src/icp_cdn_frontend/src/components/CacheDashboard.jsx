@@ -91,7 +91,6 @@ export default function CacheDashboard() {
       
       setCacheStats({
         entries: Number(stats[0]),
-        totalBytes: Number(stats[1]),
         userCacheBytes: userCacheBytes
       });
 
@@ -433,38 +432,13 @@ export default function CacheDashboard() {
             </div>
           </motion.div>
 
-          {/* Total Size */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.4 }}
-            className="bg-white/10 dark:bg-neutral-900/40 backdrop-blur-xl rounded-2xl p-6 border border-white/30 dark:border-neutral-700 shadow-xl"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <BarChart3 className="w-8 h-8 text-orange-500" />
-            </div>
-            <h3 className="text-2xl font-bold mb-2">
-              {loading ? '...' : formatBytes(cacheStats?.totalBytes || 0)}
-            </h3>
-            <p className="text-neutral-400 text-sm">Global Cache Size</p>
-            <div className="mt-3">
-              <div className="w-full bg-neutral-700 rounded-full h-2 mb-1">
-                <div
-                  className="bg-gradient-to-r from-orange-500 to-orange-700 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.min((cacheStats?.totalBytes || 0) / (20 * 1024 * 1024) * 100, 100)}%` }}
-                ></div>
-              </div>
-              <div className="text-xs text-neutral-500">
-                {Math.round((cacheStats?.totalBytes || 0) / (20 * 1024 * 1024) * 100)}% of 20MB limit
-              </div>
-            </div>
-          </motion.div>
+
 
           {/* User Cache Usage */}
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.45 }}
+            transition={{ delay: 0.4 }}
             className="bg-white/10 dark:bg-neutral-900/40 backdrop-blur-xl rounded-2xl p-6 border border-white/30 dark:border-neutral-700 shadow-xl"
           >
             <div className="flex items-center justify-between mb-4">
@@ -491,7 +465,7 @@ export default function CacheDashboard() {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.5 }}
+            transition={{ delay: 0.45 }}
             className="bg-white/10 dark:bg-neutral-900/40 backdrop-blur-xl rounded-2xl p-6 border border-white/30 dark:border-neutral-700 shadow-xl"
           >
             <div className="flex items-center justify-between mb-4">
@@ -518,7 +492,7 @@ export default function CacheDashboard() {
           <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.6 }}
+            transition={{ delay: 0.5 }}
             className="bg-white/10 dark:bg-neutral-900/40 backdrop-blur-xl rounded-2xl p-6 border border-white/30 dark:border-neutral-700 shadow-xl"
           >
             <div className="flex items-center justify-between mb-4">
