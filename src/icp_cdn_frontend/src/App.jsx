@@ -11,6 +11,7 @@ import CacheDashboard from "./components/CacheDashboard";
 import PerformanceMonitor from "./components/PerformanceMonitor";
 import Tiers from "./components/Tiers";
 import CyclesBilling from "./components/CyclesBilling";
+import HomeRedirect from "./components/HomeRedirect";
 
 import LibraryDemo from "./components/LibraryDemo";
 import CanisterToCanisterDemo from "./components/CanisterToCanisterDemo";
@@ -26,26 +27,28 @@ function App() {
           <Route
             path="/"
             element={
-              <div className="bg-neutral-950 text-white">
-                <div id="home" className="w-full">
-                  <HeroSection />
+              <HomeRedirect>
+                <div className="bg-neutral-950 text-white">
+                  <div id="home" className="w-full">
+                    <HeroSection />
+                  </div>
+                  <div id="features" className="w-full">
+                    <FeatureSection />
+                  </div>
+                  <div id="about" className="w-full">
+                    <AboutUs />
+                  </div>
+                  <div id="mission" className="w-full">
+                    <Mission />
+                  </div>
+                  <div className="max-w-7xl mx-auto px-6">
+                    <Footer />
+                  </div>
                 </div>
-                <div id="features" className="w-full">
-                  <FeatureSection />
-                </div>
-                <div id="about" className="w-full">
-                  <AboutUs />
-                </div>
-                <div id="mission" className="w-full">
-                  <Mission />
-                </div>
-                <div className="max-w-7xl mx-auto px-6">
-                  <Footer />
-                </div>
-              </div>
+              </HomeRedirect>
             }
           />
-          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/dashboard" element={<EnhancedUpload />} />
           <Route path="/upload" element={<EnhancedUpload />} />
           <Route path="/cache" element={<CacheDashboard />} />
           <Route path="/resize" element={<ImageResizer />} />
