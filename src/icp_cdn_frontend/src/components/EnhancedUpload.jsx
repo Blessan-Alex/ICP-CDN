@@ -1,6 +1,9 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Upload, FileText, Cloud, Zap, Shield, CheckCircle, AlertCircle, Loader, Crown, Info, Eye, X, Download, ExternalLink } from 'lucide-react';
+import undrawShare from "../assets/undraw_share-link_jr6w.svg";
+import undrawStars from "../assets/undraw_to-the-stars_tz9v.svg";
+import undrawFolderFiles from "../assets/undraw_folder-files_5www.svg";
 import { useAuth } from '../AuthContext';
 import { createActor, canisterId } from '../canister_id_patch';
 import { HttpAgent } from '@dfinity/agent';
@@ -453,11 +456,16 @@ export default function EnhancedUpload() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="min-h-screen bg-neutral-950 text-white pt-20">
       {/* Background Pattern */}
       <div className="absolute inset-0 bg-gradient-to-br from-orange-500/5 via-transparent to-orange-800/5 z-0"></div>
+      {/* SVG Backgrounds for Welcome Section */}
+      <div className="absolute inset-0 pointer-events-none z-0">
+        <img src={undrawFolderFiles} alt="Folder Files" className="absolute top-1/3 left-12 w-64 opacity-10 mix-blend-lighten select-none" style={{top: '33%', left: '3%'}} />
+        <img src={undrawShare} alt="Share Link" className="absolute top-1/4 right-12 w-48 opacity-10 mix-blend-lighten select-none" style={{top: '25%', right: '3%'}} />
+      </div>
       
       <div className="relative z-10 max-w-7xl mx-auto px-6">
         {/* Welcome Section */}
         <motion.section initial={{ opacity: 0, y: 40 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="py-10 text-center">
-          <motion.div className="bg-gradient-to-r from-orange-500/10 to-orange-800/10 rounded-2xl p-8 border border-orange-500/20 mb-8 shadow-xl shadow-orange-900/10">
+          <motion.div className="bg-gradient-to-r from-orange-500/5 to-orange-800/5 backdrop-blur-sm rounded-2xl p-8 border border-orange-500/10 mb-8 shadow-xl shadow-orange-900/5">
             <h1 className="text-4xl font-bold mb-2">Welcome to Your Decentralized CDN!</h1>
             <p className="text-lg text-neutral-400 mb-2">Upload, manage, and deliver your web assets globally, powered by the Internet Computer.</p>
             {principal && (
