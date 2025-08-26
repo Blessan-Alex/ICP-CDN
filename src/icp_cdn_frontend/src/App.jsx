@@ -11,7 +11,7 @@ import CacheDashboard from "./components/CacheDashboard";
 import PerformanceMonitor from "./components/PerformanceMonitor";
 import Tiers from "./components/Tiers";
 import CyclesBilling from "./components/CyclesBilling";
-import TestInterface from "./components/TestInterface";
+
 import LibraryDemo from "./components/LibraryDemo";
 import CanisterToCanisterDemo from "./components/CanisterToCanisterDemo";
 import { AuthProvider } from "./AuthContext";
@@ -52,7 +52,7 @@ function App() {
           <Route path="/performance" element={<PerformanceMonitor />} />
           <Route path="/tiers" element={<Tiers />} />
           <Route path="/billing" element={<CyclesBilling />} />
-          <Route path="/tests" element={<TestInterface />} />
+  
           <Route path="/library-demo" element={<LibraryDemo />} />
           <Route path="/canister-demo" element={<CanisterToCanisterDemo />} />
         </Routes>
