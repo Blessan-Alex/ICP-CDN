@@ -21,12 +21,11 @@ export const dashboardNavItem = {
 export const enhancedNavItems = [
   { label: "Upload", href: "/upload", type: "page" },
   { label: "Cache", href: "/cache", type: "page" },
-  { label: "Resize", href: "/resize", type: "page" },
-  { label: "Performance", href: "/performance", type: "page" },
   { label: "Tiers", href: "/tiers", type: "page" },
-  { label: "Billing", href: "/billing", type: "page" },
+  { label: "Resize", href: "/resize", type: "page" },
   { label: "Library Demo", href: "/library-demo", type: "page" },
   { label: "Canister Demo", href: "/canister-demo", type: "page" },
+  { label: "Performance", href: "/performance", type: "page" },
 ];
 
 export const features = [
