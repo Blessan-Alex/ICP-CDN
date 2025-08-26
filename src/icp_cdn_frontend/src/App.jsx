@@ -12,6 +12,7 @@ import PerformanceMonitor from "./components/PerformanceMonitor";
 import Tiers from "./components/Tiers";
 import CyclesBilling from "./components/CyclesBilling";
 import HomeRedirect from "./components/HomeRedirect";
+import VersionBanner from "./components/VersionBanner";
 
 import LibraryDemo from "./components/LibraryDemo";
 import CanisterToCanisterDemo from "./components/CanisterToCanisterDemo";
@@ -22,6 +23,7 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+        <VersionBanner />
         <Navbar />
         <Routes>
           <Route

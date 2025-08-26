@@ -11,14 +11,6 @@ const teamMembers = [
     email: "khatrisakshi3003@gmail.com"
   },
   {
-    name: "Mani Verma",
-    role: "Curious Power Person",
-    description: "A curious, amazing, and sweet power person who brings creativity and technical excellence to every project. Always exploring new technologies and pushing the boundaries of what's possible.",
-    linkedin: "https://www.linkedin.com/in/mani-verma-2b4334293/",
-    github: "https://github.com/mani10verma11",
-    email: "mani10verma11@gmail.com"
-  },
-  {
     name: "Blessan Alex",
     role: "Curious Learner",
     description: "A curious learner who never gets tired of learning and explores everything. Passionate about continuous improvement and discovering new ways to solve complex problems.",
@@ -71,7 +63,7 @@ const AboutUs = () => {
           </p>
         </motion.div>
         {/* Team Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16 max-w-4xl mx-auto">
           {teamMembers.map((member, index) => (
             <motion.div
               key={index}

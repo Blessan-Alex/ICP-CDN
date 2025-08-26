@@ -30,39 +30,57 @@ export const enhancedNavItems = [
 export const features = [
   {
     icon: <Rocket />,
-    text: "Decentralized File Storage",
+    text: "Decentralized Content Delivery Network",
     description:
-      "Store your files securely on the Internet Computer blockchain with cryptographic verification. Every file is tamper-proof and distributed across multiple nodes for maximum reliability and global accessibility.",
+      "True decentralization with no single points of failure. Built entirely on ICP with distributed storage, global boundary node distribution, and cryptographic content verification for maximum reliability.",
   },
   {
     icon: <ShieldCheck />,
-    text: "User Authentication & Isolation",
+    text: "HTTP Outcalls & IPFS Integration",
     description:
-      "Built-in Internet Identity authentication ensures your files are private and isolated. Each user's data is cryptographically separated, preventing unauthorized access and maintaining complete privacy.",
+      "Pure ICP-native implementation with direct HTTP outcalls to IPFS gateways and Pinata API. No external dependencies - everything runs on-chain with real-time content fetching and storage.",
   },
   {
     icon: <Settings />,
-    text: "Chunked Upload & Download",
+    text: "Intelligent LRU Cache System",
     description:
-      "Handle large files efficiently with automatic chunked uploads and downloads. Files over 500KB are automatically split into manageable chunks for reliable transfer and optimal performance.",
+      "Advanced on-chain caching with LRU eviction policies, automatic content optimization, and smart storage management. Achieve 95%+ cache hit rates with intelligent content delivery.",
   },
   {
     icon: <Shield />,
-    text: "Global IPFS Distribution",
+    text: "Canister-to-Canister Communication",
     description:
-      "Files are served through IPFS with Pinata gateway, ensuring fast global access. Your content is available worldwide with minimal latency and maximum reliability.",
+      "Complete Rust client library enabling seamless integration for other ICP projects. Open source library for OpenChat, Caffeine, and any dApp with automatic cycles payment and bulk operations.",
   },
   {
     icon: <Folder />,
-    text: "Comprehensive File Management",
+    text: "Tier System & Cycles Billing",
     description:
-      "Upload, view, delete, and share files with unique asset links. Support for images, videos, documents, web assets, and fonts with automatic content type detection and management.",
+      "Native ICP cycles-based billing with transparent pricing tiers (Free, Starter, Pro, Business). Real cycles acceptance, cost estimation, and sustainable economics for the ICP ecosystem.",
   },
   {
     icon: <BarChart />,
-    text: "Real-time Dashboard",
+    text: "On-Chain Image Processing",
     description:
-      "Monitor your CDN usage with an intuitive dashboard showing file counts, storage usage, and network statistics. Track your decentralized content delivery performance in real-time.",
+      "Real-time image resizing, format conversion, and optimization directly within canisters. No external services needed - pure ICP compute capabilities for content transformation.",
+  },
+  {
+    icon: <Rocket />,
+    text: "Performance Analytics & Monitoring",
+    description:
+      "Comprehensive real-time analytics with cache performance metrics, user analytics, and system health monitoring. Track decentralized content delivery performance with detailed insights.",
+  },
+  {
+    icon: <ShieldCheck />,
+    text: "Global Boundary Node Distribution",
+    description:
+      "Leverage ICP's global boundary node network for worldwide content delivery. Your content is automatically distributed across multiple geographic locations for optimal performance and minimal latency.",
+  },
+  {
+    icon: <Settings />,
+    text: "Cryptographic Content Verification",
+    description:
+      "End-to-end content integrity with cryptographic verification. Every file is tamper-proof with hash verification, ensuring your content remains secure and authentic throughout the delivery chain.",
   },
 ];
 

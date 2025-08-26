@@ -141,21 +141,26 @@ const Navbar = () => {
               ))}
             </div>
             
-            {/* Upload button - Only show when logged in */}
-            {isLoggedIn && (
-              <button
-                onClick={() => handleNavClick(dashboardNavItem.href, dashboardNavItem.type)}
-                className={`py-2 px-4 rounded-lg font-medium transition-all duration-300 transform focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 hover:scale-105 relative group ${
-                  isOnUpload
-                    ? "bg-orange-600 text-white cursor-default"
-                    : "bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800"
-                }`}
-                aria-label={dashboardNavItem.label}
-                tabIndex={0}
-              >
-                {dashboardNavItem.label}
-              </button>
-            )}
+            {/* Upload button - Always show, but handle login if not authenticated */}
+            <button
+              onClick={() => {
+                if (isLoggedIn) {
+                  handleNavClick(dashboardNavItem.href, dashboardNavItem.type);
+                } else {
+                  // Show login prompt
+                  handleAuthClick();
+                }
+              }}
+              className={`py-2 px-4 rounded-lg font-medium transition-all duration-300 transform focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 hover:scale-105 relative group ${
+                isOnUpload
+                  ? "bg-orange-600 text-white cursor-default"
+                  : "bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800"
+              }`}
+              aria-label={dashboardNavItem.label}
+              tabIndex={0}
+            >
+              {dashboardNavItem.label}
+            </button>
             <button
               onClick={handleAuthClick}
               className="border border-orange-500 text-orange-500 hover:bg-orange-500 hover:text-white py-2 px-4 rounded-lg transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
@@ -244,24 +249,27 @@ const Navbar = () => {
                 
                 
                 
-                {/* Upload button - Only show when logged in */}
-                {isLoggedIn && (
-                  <>
-                    <div className="border-t border-neutral-700 my-2"></div>
-                    <button
-                      onClick={() => handleNavClick(dashboardNavItem.href, dashboardNavItem.type)}
-                      className={`block w-full text-left px-3 py-2 text-base font-medium rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 ${
-                        isOnUpload
-                          ? "bg-orange-600 text-white cursor-default"
-                          : "bg-gradient-to-r from-orange-500 to-orange-700"
-                      }`}
-                      aria-label={dashboardNavItem.label}
-                      tabIndex={0}
-                    >
-                      {dashboardNavItem.label}
-                    </button>
-                  </>
-                )}
+                {/* Upload button - Always show, but handle login if not authenticated */}
+                <div className="border-t border-neutral-700 my-2"></div>
+                <button
+                  onClick={() => {
+                    if (isLoggedIn) {
+                      handleNavClick(dashboardNavItem.href, dashboardNavItem.type);
+                    } else {
+                      // Show login prompt
+                      handleAuthClick();
+                    }
+                  }}
+                  className={`block w-full text-left px-3 py-2 text-base font-medium rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 ${
+                    isOnUpload
+                      ? "bg-orange-600 text-white cursor-default"
+                      : "bg-gradient-to-r from-orange-500 to-orange-700"
+                  }`}
+                  aria-label={dashboardNavItem.label}
+                  tabIndex={0}
+                >
+                  {dashboardNavItem.label}
+                </button>
                 <button
                   onClick={handleAuthClick}
                   className="block w-full text-left px-3 py-2 text-base font-medium border border-orange-500 text-orange-500 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
