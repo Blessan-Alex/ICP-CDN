@@ -1,0 +1,97 @@
+graph TB
+    %% User Interface Layer
+    subgraph "Frontend Layer"
+        UI["React Frontend"]
+        UPLOAD["EnhancedUpload"]
+        CACHE["CacheDashboard"]
+        RESIZE["ImageResizer"]
+        TIERS["Tiers Management"]
+        LIBRARY["Library Demo"]
+    end
+
+    %% Canister Layer
+    subgraph "ICP Canister Layer"
+        subgraph "Main Backend Canister"
+            BACKEND["icp_cdn_backend"]
+            CACHE_MGR["LRU Cache Manager"]
+            USER_MGR["User Account Manager"]
+            IMG_PROC["Image Processor"]
+            CYCLES["Cycles Billing"]
+        end
+        
+        subgraph "Client Library"
+            CLIENT["icp_cdn_client"]
+            API["Client API"]
+        end
+        
+        II["Internet Identity"]
+    end
+
+    %% External Services Layer
+    subgraph "External Services"
+        subgraph "IPFS Storage"
+            PINATA["Pinata API"]
+            IPFS_GW["IPFS Gateway"]
+        end
+        
+        subgraph "Other ICP Projects"
+            OPENCHAT["OpenChat"]
+            CAFFEINE["Caffeine"]
+            OTHER["Other ICP dApps"]
+        end
+    end
+
+    %% Data Storage
+    subgraph "Data Layer"
+        CACHE_STORE[("LRU Cache")]
+        USER_DATA[("User Accounts")]
+        METRICS[("Performance")]
+    end
+
+    %% Connections - Frontend to Backend
+    UI -->|HTTP Requests| BACKEND
+    UPLOAD -->|upload_content| BACKEND
+    CACHE -->|get_cache_stats| BACKEND
+    RESIZE -->|get_content_with_resize| BACKEND
+    TIERS -->|upgrade_tier| BACKEND
+    LIBRARY -->|Client Library Calls| CLIENT
+
+    %% Backend Internal Connections
+    BACKEND --> CACHE_MGR
+    BACKEND --> USER_MGR
+    BACKEND --> IMG_PROC
+    BACKEND --> CYCLES
+    CACHE_MGR --> CACHE_STORE
+    USER_MGR --> USER_DATA
+    BACKEND --> METRICS
+
+    %% HTTP Outcalls
+    BACKEND -->|fetch_from_ipfs| IPFS_GW
+    BACKEND -->|upload_to_pinata| PINATA
+
+    %% Authentication
+    UI -->|Internet Identity| II
+    BACKEND -->|Principal Verification| II
+
+    %% Client Library Integration
+    CLIENT -->|upload_asset| BACKEND
+    CLIENT -->|get_asset| BACKEND
+    CLIENT -->|deposit_cycles| BACKEND
+
+    %% External Project Integration
+    OPENCHAT -->|Client Library| CLIENT
+    CAFFEINE -->|Client Library| CLIENT
+    OTHER -->|Client Library| CLIENT
+
+    %% Styling
+    classDef frontend fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef backend fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef external fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef storage fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef client fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+
+    class UI,UPLOAD,CACHE,RESIZE,TIERS,LIBRARY frontend
+    class BACKEND,CACHE_MGR,USER_MGR,IMG_PROC,CYCLES,II backend
+    class PINATA,IPFS_GW,OPENCHAT,CAFFEINE,OTHER external
+    class CACHE_STORE,USER_DATA,METRICS storage
+    class CLIENT,API client

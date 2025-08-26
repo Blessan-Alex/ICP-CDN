@@ -1,0 +1,188 @@
+graph TB
+    %% ===== USER INTERFACE LAYER =====
+    subgraph "Frontend Layer (React + Vite)"
+        subgraph "Core UI Components"
+            HERO["HeroSection<br/>Landing Page"]
+            NAV["Navbar<br/>Navigation"]
+            DASH["Dashboard<br/>Main Interface"]
+            UPLOAD["EnhancedUpload<br/>Drag & Drop + Progress"]
+            CACHE_DASH["CacheDashboard<br/>Real-time Stats"]
+            PERF_MON["PerformanceMonitor<br/>Live Analytics"]
+            TIERS_UI["Tiers Management<br/>Upgrade Interface"]
+            BILLING["CyclesBilling<br/>Payment Processing"]
+        end
+        
+        subgraph "Advanced Features"
+            IMG_RESIZE["ImageResizer<br/>On-chain Processing"]
+            LIB_DEMO["LibraryDemo<br/>Client Integration"]
+            CAN_DEMO["CanisterToCanisterDemo<br/>C2C Testing"]
+            SMART_DEL["SmartContentDelivery<br/>Optimized Delivery"]
+            FILE_CARD["EnhancedFileCard<br/>File Management"]
+        end
+        
+        subgraph "Supporting Components"
+            FEATURES["FeatureSection<br/>Product Showcase"]
+            ABOUT["AboutUs<br/>Project Info"]
+            MISSION["Mission<br/>Vision Statement"]
+            FOOTER["Footer<br/>Links & Info"]
+        end
+    end
+
+    %% ===== ICP CANISTER LAYER =====
+    subgraph "ICP Canister Layer"
+        subgraph "Main Backend Canister (icp_cdn_backend)"
+            subgraph "Core State Management"
+                BACKEND["Main Canister<br/>Rust Implementation"]
+                CACHE_MGR["LRU Cache Manager<br/>Tier-based Limits"]
+                USER_MGR["User Account Manager<br/>Tier System"]
+                IMG_PROC["Image Processor<br/>On-chain Resizing"]
+                CYCLES_MGR["Cycles Billing<br/>Payment Processing"]
+                METRICS_MGR["Performance Metrics<br/>Real-time Tracking"]
+            end
+            
+            subgraph "Data Structures"
+                IPFS_FILE["IpfsFile<br/>File Metadata"]
+                CACHE_ENTRY["CacheEntry<br/>Cached Content"]
+                USER_ACCOUNT["UserAccount<br/>User Data"]
+                USER_TIER["UserTier<br/>Free/Starter/Pro/Business"]
+                TIER_INFO["UserTierInfo<br/>Tier Details"]
+                PERF_METRICS["CachePerformanceMetrics<br/>Analytics"]
+            end
+            
+            subgraph "Core Functions"
+                UPLOAD_FN["upload_content()<br/>Main Upload Handler"]
+                FETCH_FN["fetch_from_ipfs()<br/>HTTP Outcall to IPFS"]
+                PINATA_FN["upload_to_pinata()<br/>HTTP Outcall to Pinata"]
+                RESIZE_FN["get_content_with_resize()<br/>Image Processing"]
+                DEPOSIT_FN["deposit_cycles()<br/>Cycles Payment"]
+                CACHE_FN["put_cache_entry()<br/>Cache Management"]
+                EVICT_FN["evict_lru_item()<br/>LRU Eviction"]
+            end
+        end
+        
+        subgraph "Client Library (icp_cdn_client)"
+            CLIENT_LIB["CdnClient<br/>Rust Library"]
+            CLIENT_API["Client API<br/>Canister-to-Canister"]
+            UPLOAD_ASSET["upload_asset()<br/>Asset Upload"]
+            GET_ASSET["get_asset()<br/>Asset Retrieval"]
+            GET_FALLBACK["get_asset_with_fallback()<br/>Cache + IPFS"]
+            DEPOSIT_CYCLES["deposit_cycles()<br/>Cycles Payment"]
+            ESTIMATE_COST["estimate_upload_cost()<br/>Cost Calculation"]
+            UPGRADE_TIER["upgrade_tier()<br/>Tier Upgrades"]
+        end
+        
+        subgraph "Authentication"
+            II["Internet Identity<br/>Authentication Service"]
+            AUTH_CONTEXT["AuthContext<br/>React Auth State"]
+        end
+    end
+
+    %% ===== EXTERNAL SERVICES LAYER =====
+    subgraph "External Services"
+        subgraph "IPFS Storage"
+            PINATA_API["Pinata API<br/>IPFS Pinning Service"]
+            IPFS_GW["IPFS Gateway<br/>Cloudflare Gateway"]
+            PINATA_JWT["Pinata JWT<br/>Authentication Token"]
+        end
+        
+        subgraph "Other ICP Projects"
+            OPENCHAT["OpenChat<br/>Social Platform"]
+            CAFFEINE["Caffeine<br/>Content Platform"]
+            OTHER_DAPPS["Other ICP dApps<br/>Client Library Users"]
+        end
+        
+        subgraph "HTTP Outcalls"
+            HTTP_MGMT["Management Canister<br/>HTTP Outcall Handler"]
+            HTTP_REQ["HTTP Request<br/>External API Calls"]
+        end
+    end
+
+    %% ===== DATA STORAGE LAYER =====
+    subgraph "Data Storage Layer"
+        subgraph "In-Memory Storage"
+            CACHE_STORE[("LRU Cache<br/>HashMap<String, CacheEntry>")]
+            USER_DATA[("User Accounts<br/>HashMap<Principal, UserAccount>")]
+            METRICS_DATA[("Performance Metrics<br/>Real-time Analytics")]
+            LRU_QUEUE[("LRU Queue<br/>VecDeque<String>")]
+            USER_FILES[("User Files<br/>HashMap<String, Vec<IpfsFile>>")]
+        end
+        
+        subgraph "Configuration"
+            TIER_CONFIG[("Tier Configuration<br/>Cache Limits & Pricing")]
+            PINATA_CONFIG[("Pinata Configuration<br/>API Settings")]
+            HTTP_CONFIG[("HTTP Configuration<br/>Outcall Settings")]
+        end
+    end
+
+    %% ===== CONNECTIONS - FRONTEND TO BACKEND =====
+    HERO -->|HTTP Requests| BACKEND
+    DASH -->|Dashboard Data| BACKEND
+    UPLOAD -->|upload_content()| UPLOAD_FN
+    CACHE_DASH -->|get_cache_stats()| CACHE_MGR
+    PERF_MON -->|get_performance_metrics()| METRICS_MGR
+    TIERS_UI -->|upgrade_tier()| USER_MGR
+    BILLING -->|deposit_cycles()| DEPOSIT_FN
+    IMG_RESIZE -->|get_content_with_resize()| RESIZE_FN
+    LIB_DEMO -->|Client Library Calls| CLIENT_LIB
+    CAN_DEMO -->|Canister-to-Canister| CLIENT_API
+
+    %% ===== BACKEND INTERNAL CONNECTIONS =====
+    BACKEND --> CACHE_MGR
+    BACKEND --> USER_MGR
+    BACKEND --> IMG_PROC
+    BACKEND --> CYCLES_MGR
+    BACKEND --> METRICS_MGR
+    CACHE_MGR --> CACHE_STORE
+    USER_MGR --> USER_DATA
+    METRICS_MGR --> METRICS_DATA
+    CACHE_MGR --> LRU_QUEUE
+    BACKEND --> USER_FILES
+
+    %% ===== HTTP OUTCALLS =====
+    FETCH_FN -->|HTTP Outcall| HTTP_MGMT
+    PINATA_FN -->|HTTP Outcall| HTTP_MGMT
+    HTTP_MGMT -->|HTTP Request| IPFS_GW
+    HTTP_MGMT -->|HTTP Request| PINATA_API
+    PINATA_API -->|JWT Auth| PINATA_JWT
+
+    %% ===== AUTHENTICATION =====
+    AUTH_CONTEXT -->|Internet Identity| II
+    BACKEND -->|Principal Verification| II
+
+    %% ===== CLIENT LIBRARY INTEGRATION =====
+    CLIENT_LIB -->|Canister-to-Canister| UPLOAD_ASSET
+    CLIENT_LIB -->|Canister-to-Canister| GET_ASSET
+    CLIENT_LIB -->|Canister-to-Canister| GET_FALLBACK
+    CLIENT_LIB -->|Canister-to-Canister| DEPOSIT_CYCLES
+    CLIENT_LIB -->|Canister-to-Canister| ESTIMATE_COST
+    CLIENT_LIB -->|Canister-to-Canister| UPGRADE_TIER
+
+    %% ===== EXTERNAL PROJECT INTEGRATION =====
+    OPENCHAT -->|Client Library| CLIENT_LIB
+    CAFFEINE -->|Client Library| CLIENT_LIB
+    OTHER_DAPPS -->|Client Library| CLIENT_LIB
+
+    %% ===== DATA FLOW CONNECTIONS =====
+    UPLOAD_FN --> CACHE_ENTRY
+    FETCH_FN --> IPFS_FILE
+    USER_MGR --> USER_ACCOUNT
+    USER_MGR --> USER_TIER
+    USER_MGR --> TIER_INFO
+    METRICS_MGR --> PERF_METRICS
+
+    %% ===== STYLING =====
+    classDef frontend fill:#e1f5fe,stroke:#01579b,stroke-width:2px
+    classDef backend fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    classDef external fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    classDef storage fill:#e8f5e8,stroke:#1b5e20,stroke-width:2px
+    classDef client fill:#fce4ec,stroke:#880e4f,stroke-width:2px
+    classDef data fill:#f1f8e9,stroke:#33691e,stroke-width:2px
+    classDef auth fill:#e0f2f1,stroke:#004d40,stroke-width:2px
+
+    class HERO,NAV,DASH,UPLOAD,CACHE_DASH,PERF_MON,TIERS_UI,BILLING,IMG_RESIZE,LIB_DEMO,CAN_DEMO,SMART_DEL,FILE_CARD,FEATURES,ABOUT,MISSION,FOOTER frontend
+    class BACKEND,CACHE_MGR,USER_MGR,IMG_PROC,CYCLES_MGR,METRICS_MGR,UPLOAD_FN,FETCH_FN,PINATA_FN,RESIZE_FN,DEPOSIT_FN,CACHE_FN,EVICT_FN backend
+    class PINATA_API,IPFS_GW,PINATA_JWT,OPENCHAT,CAFFEINE,OTHER_DAPPS,HTTP_MGMT,HTTP_REQ external
+    class CACHE_STORE,USER_DATA,METRICS_DATA,LRU_QUEUE,USER_FILES,TIER_CONFIG,PINATA_CONFIG,HTTP_CONFIG storage
+    class CLIENT_LIB,CLIENT_API,UPLOAD_ASSET,GET_ASSET,GET_FALLBACK,DEPOSIT_CYCLES,ESTIMATE_COST,UPGRADE_TIER client
+    class IPFS_FILE,CACHE_ENTRY,USER_ACCOUNT,USER_TIER,TIER_INFO,PERF_METRICS data
+    class II,AUTH_CONTEXT auth

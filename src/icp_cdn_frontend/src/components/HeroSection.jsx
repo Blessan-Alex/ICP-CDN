@@ -15,14 +15,14 @@ const HeroSection = () => {
 
   const handleDeployNow = async () => {
     if (isLoggedIn) {
-      // If already logged in, go directly to dashboard
-      navigate('/dashboard');
+      // If already logged in, go directly to upload
+      navigate('/upload');
     } else {
       // If not logged in, start authentication flow
       try {
         await login();
-        // After successful login, navigate to dashboard
-        navigate('/dashboard');
+        // After successful login, navigate to upload
+        navigate('/upload');
       } catch (error) {
         console.error('Login failed:', error);
         alert('Login failed. Please try again.');

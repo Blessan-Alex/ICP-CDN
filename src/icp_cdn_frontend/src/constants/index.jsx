@@ -13,13 +13,12 @@ export const navItems = [
 ];
 
 export const dashboardNavItem = {
-  label: "Dashboard", 
-  href: "/dashboard", 
+  label: "Upload", 
+  href: "/upload", 
   type: "page"
 };
 
 export const enhancedNavItems = [
-  { label: "Upload", href: "/upload", type: "page" },
   { label: "Cache", href: "/cache", type: "page" },
   { label: "Tiers", href: "/tiers", type: "page" },
   { label: "Resize", href: "/resize", type: "page" },
