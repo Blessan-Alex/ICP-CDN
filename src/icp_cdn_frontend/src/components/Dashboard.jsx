@@ -12,7 +12,7 @@ import { Image, FileText as FileTextIcon, Video, File as FileIcon, Music, FileAr
 import EnhancedFileCard from './EnhancedFileCard';
 import SmartContentDelivery from './SmartContentDelivery';
 
-const PINATA_GATEWAY = "black-defensive-zebra-94.mypinata.cloud";
+const PINATA_GATEWAY = import.meta.env.VITE_PINATA_GATEWAY || "black-defensive-zebra-94.mypinata.cloud";
 const getAssetUrl = (cid) => {
   return `https://${PINATA_GATEWAY}/ipfs/${cid}`;
 };

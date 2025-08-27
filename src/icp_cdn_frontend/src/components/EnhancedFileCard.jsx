@@ -150,7 +150,7 @@ export default function EnhancedFileCard({ file, onAction }) {
 
   // Copy file link
   const copyFileLink = async () => {
-    const link = `https://black-defensive-zebra-94.mypinata.cloud/ipfs/${file.cid}`;
+    const link = `https://${import.meta.env.VITE_PINATA_GATEWAY || 'black-defensive-zebra-94.mypinata.cloud'}/ipfs/${file.cid}`;
     try {
       await navigator.clipboard.writeText(link);
       setCopied(true);
@@ -345,7 +345,7 @@ export default function EnhancedFileCard({ file, onAction }) {
         </motion.button>
 
         <motion.a
-          href={`https://black-defensive-zebra-94.mypinata.cloud/ipfs/${file.cid}`}
+          href={`https://${import.meta.env.VITE_PINATA_GATEWAY || 'black-defensive-zebra-94.mypinata.cloud'}/ipfs/${file.cid}`}
           target="_blank"
           rel="noopener noreferrer"
           className="flex items-center gap-2 px-3 py-2 bg-orange-600 hover:bg-orange-700 rounded-lg text-white text-sm transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"

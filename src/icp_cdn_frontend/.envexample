@@ -14,3 +14,10 @@ VITE_PINATA_GATEWAY=your-subdomain.mypinata.cloud
 VITE_PINATA_STORAGE_LIMIT_BYTES=1073741824   # 1GB
 VITE_UPLOAD_CHUNK_SIZE_KB=512
 VITE_CACHE_LIMIT_MB=20
+
+# Identity provider configuration
+VITE_IDENTITY_PROVIDER_URL=https://identity.ic0.app
+VITE_LOCAL_REPLICA_HOST=localhost:4943
+
+# Demo configuration
+VITE_DEMO_FILE_SIZES_KB=[1, 10, 100]

@@ -224,7 +224,7 @@ export default function LibraryDemo() {
 
     try {
       console.log('Testing cost estimation with CDN Client Library...');
-      const fileSizes = [1024, 10240, 102400]; // 1KB, 10KB, 100KB
+      const fileSizes = JSON.parse(import.meta.env.VITE_DEMO_FILE_SIZES_KB || '[1, 10, 100]').map(size => size * 1024); // 1KB, 10KB, 100KB
       const estimates = {};
 
       for (const size of fileSizes) {

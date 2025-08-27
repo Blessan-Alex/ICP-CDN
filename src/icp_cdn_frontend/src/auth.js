@@ -23,8 +23,8 @@ export const login = async () => {
   return new Promise((resolve, reject) => {
     authClient.login({
       identityProvider: import.meta.env.VITE_DFX_NETWORK === 'ic' 
-        ? 'https://identity.ic0.app' 
-        : `http://${INTERNET_IDENTITY_CANISTER_ID}.localhost:4943`,
+        ? (import.meta.env.VITE_IDENTITY_PROVIDER_URL || 'https://identity.ic0.app')
+        : `http://${INTERNET_IDENTITY_CANISTER_ID}.${import.meta.env.VITE_LOCAL_REPLICA_HOST || 'localhost:4943'}`,
       onSuccess: () => {
         const identity = authClient.getIdentity();
         resolve(identity);
