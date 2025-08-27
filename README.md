@@ -4,7 +4,7 @@
 
 ---
 
-## 📋 Summary & Problem Statement
+## 📋 Problem Statement
 
 Traditional CDNs are centralized, expensive, and create single points of failure. CanisterDrop solves this by leveraging **ICP's native capabilities** to provide a truly decentralized Content Delivery Network:
 
@@ -26,59 +26,13 @@ The platform serves as both a standalone dCDN service and a canister-to-canister
 
 ---
 
-## ✨ Complete Feature Set
-
-### 🚀 **Core dCDN Features**
-- **File Upload & Storage**: Drag-and-drop interface with IPFS storage
-- **Content Delivery**: Intelligent caching with IPFS fallback
-- **Image Processing**: On-chain resizing, format conversion, and optimization
-- **Cache Management**: LRU-based caching with automatic eviction
-- **Performance Monitoring**: Real-time analytics and metrics dashboard
-
-### 💳 **Tier System & Billing**
-- **Free Tier**: 20MB cache, 1GB storage, basic features
-- **Starter Tier**: 50MB cache, 100GB storage, $1 equivalent in cycles
-- **Pro Tier**: 100MB cache, 500GB storage, $5 equivalent in cycles
-- **Business Tier**: 500MB cache, 2TB storage, $15 equivalent in cycles
-- **Cycles Billing**: Native ICP cycles for transparent pricing
-
-For detailed business model and pricing strategy, see [docs/BUSINESS_MODEL.md](docs/BUSINESS_MODEL.md).
-
-### 🔧 **Developer Tools**
-- **Client Library**: Complete Rust library for canister integration
-- **Canister-to-Canister**: Seamless communication between ICP canisters
-- **API Documentation**: Comprehensive function documentation
-- **Example Implementations**: Ready-to-use code examples
-- **Bulk Operations**: High-volume upload and processing support
-- **Easy Integration**: Open source library for projects like OpenChat, Caffeine, and any ICP dApp
-
-### 🔐 **Security & Authentication**
-- **Internet Identity**: Native ICP authentication
-- **Principal-based Access**: User-specific data isolation
-- **Content Verification**: Cryptographic content integrity checks
-- **Secure HTTP Outcalls**: Encrypted communication with external APIs
-
-### 📊 **Analytics & Monitoring**
-- **Cache Performance**: Hit/miss ratios and response times
-- **User Analytics**: Usage patterns and tier statistics
-- **System Health**: Real-time canister performance metrics
-- **Cost Tracking**: Cycles usage and billing analytics
-
-### 🔗 **Library Integration**
-- **Open Source Library**: Complete Rust client library available for integration
-- **Universal Compatibility**: Works with any ICP project (OpenChat, Caffeine, etc.)
-- **Simple Integration**: Just add the library dependency and start using dCDN services
-- **Production Ready**: Battle-tested library used in our own implementation
-- **Documentation**: Comprehensive examples and API documentation included
-
-For future development plans and roadmap, see [docs/FUTURE_ROADMAP.md](docs/FUTURE_ROADMAP.md).
-
----
-
 ## 🎥 Demo
 
 ### Demo Video
-[![Watch Demo](https://img.shields.io/badge/Watch-Demo%20Video-blue?style=for-the-badge)](https://www.loom.com/share/33b3fb6b09954c6fa4a6527c32323342)
+[![Watch Demo](https://img.shields.io/badge/Watch-Demo%20Video-blue?style=for-the-badge)](https://youtu.be/3LpbRjuumyY)
+
+### Pitch Video
+[![Watch Pitch](https://img.shields.io/badge/Watch-Pitch%20Video-green?style=for-the-badge)](https://youtu.be/WtOoVQ4wno8)
 
 ### Quick Demo Steps
 1. **Start Local Network**: `dfx start --background`
@@ -93,6 +47,8 @@ For future development plans and roadmap, see [docs/FUTURE_ROADMAP.md](docs/FUTU
 ## 🏗️ Architecture
 
 For a detailed technical architecture overview, see [docs/ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md).
+
+For visual architecture and user flow diagrams, see [docs/DIAGRAMS.md](docs/DIAGRAMS.md).
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
@@ -222,6 +178,55 @@ Update these files with your deployed canister IDs:
 
 ---
 
+## ✨ Complete Feature Set
+
+### 🚀 **Core dCDN Features**
+- **File Upload & Storage**: Drag-and-drop interface with IPFS storage
+- **Content Delivery**: Intelligent caching with IPFS fallback
+- **Image Processing**: On-chain resizing, format conversion, and optimization
+- **Cache Management**: LRU-based caching with automatic eviction
+- **Performance Monitoring**: Real-time analytics and metrics dashboard
+
+### 💳 **Tier System & Billing**
+- **Free Tier**: 20MB cache, 1GB storage, basic features
+- **Starter Tier**: 50MB cache, 100GB storage, $1 equivalent in cycles
+- **Pro Tier**: 100MB cache, 500GB storage, $5 equivalent in cycles
+- **Business Tier**: 500MB cache, 2TB storage, $15 equivalent in cycles
+- **Cycles Billing**: Native ICP cycles for transparent pricing
+
+For detailed business model and pricing strategy, see [docs/BUSINESS_MODEL.md](docs/BUSINESS_MODEL.md).
+
+### 🔧 **Developer Tools**
+- **Client Library**: Complete Rust library for canister integration
+- **Canister-to-Canister**: Seamless communication between ICP canisters
+- **API Documentation**: Comprehensive function documentation
+- **Example Implementations**: Ready-to-use code examples
+- **Bulk Operations**: High-volume upload and processing support
+- **Easy Integration**: Open source library for projects like OpenChat, Caffeine, and any ICP dApp
+
+### 🔐 **Security & Authentication**
+- **Internet Identity**: Native ICP authentication
+- **Principal-based Access**: User-specific data isolation
+- **Content Verification**: Cryptographic content integrity checks
+- **Secure HTTP Outcalls**: Encrypted communication with external APIs
+
+### 📊 **Analytics & Monitoring**
+- **Cache Performance**: Hit/miss ratios and response times
+- **User Analytics**: Usage patterns and tier statistics
+- **System Health**: Real-time canister performance metrics
+- **Cost Tracking**: Cycles usage and billing analytics
+
+### 🔗 **Library Integration**
+- **Open Source Library**: Complete Rust client library available for integration
+- **Universal Compatibility**: Works with any ICP project (OpenChat, Caffeine, etc.)
+- **Simple Integration**: Just add the library dependency and start using dCDN services
+- **Production Ready**: Battle-tested library used in our own implementation
+- **Documentation**: Comprehensive examples and API documentation included
+
+For future development plans and roadmap, see [docs/FUTURE_ROADMAP.md](docs/FUTURE_ROADMAP.md).
+
+---
+
 ## 🔧 ICP Features Used
 
 ### ✅ HTTP Outcalls (Core Feature)
@@ -300,6 +305,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ### 📋 **Project Documentation**
 - **[Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md)**: Detailed technical architecture and system design
+- **[Architecture & Flow Diagrams](docs/DIAGRAMS.md)**: Visual diagrams of system architecture and user flows
 - **[Business Model](docs/BUSINESS_MODEL.md)**: Complete business strategy, pricing, and market analysis
 - **[Future Roadmap](docs/FUTURE_ROADMAP.md)**: Development plans and upcoming features
 - **[Hackathon Challenges](docs/HACKATHON_CHALLENGES.md)**: Development challenges and solutions
