@@ -42,6 +42,8 @@ The platform serves as both a standalone dCDN service and a canister-to-canister
 - **Business Tier**: 500MB cache, 2TB storage, $15 equivalent in cycles
 - **Cycles Billing**: Native ICP cycles for transparent pricing
 
+For detailed business model and pricing strategy, see [docs/BUSINESS_MODEL.md](docs/BUSINESS_MODEL.md).
+
 ### 🔧 **Developer Tools**
 - **Client Library**: Complete Rust library for canister integration
 - **Canister-to-Canister**: Seamless communication between ICP canisters
@@ -69,6 +71,8 @@ The platform serves as both a standalone dCDN service and a canister-to-canister
 - **Production Ready**: Battle-tested library used in our own implementation
 - **Documentation**: Comprehensive examples and API documentation included
 
+For future development plans and roadmap, see [docs/FUTURE_ROADMAP.md](docs/FUTURE_ROADMAP.md).
+
 ---
 
 ## 🎥 Demo
@@ -87,6 +91,8 @@ The platform serves as both a standalone dCDN service and a canister-to-canister
 ---
 
 ## 🏗️ Architecture
+
+For a detailed technical architecture overview, see [docs/ARCHITECTURE_OVERVIEW.md](docs/ARCHITECTURE_OVERVIEW.md).
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
@@ -125,6 +131,7 @@ The platform serves as both a standalone dCDN service and a canister-to-canister
 - **DFX (ICP SDK)**: `sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"`
 - **Git**
 - **Pinata Account**: [Sign up](https://pinata.cloud/) (for IPFS storage)
+- **Frontend Dependencies**: See [requirements.txt](requirements.txt) for complete list of npm packages
 
 ### 🚀 Quick Setup (Recommended)
 ```bash
@@ -281,8 +288,31 @@ Update these files with your deployed canister IDs:
 4. Push to branch: `git push origin feature/amazing-feature`
 5. Open a Pull Request
 
+### Development Challenges
+For insights into the challenges faced during development and hackathon experience, see [docs/HACKATHON_CHALLENGES.md](docs/HACKATHON_CHALLENGES.md).
+
 ### License
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+## 📚 Documentation
+
+### 📋 **Project Documentation**
+- **[Architecture Overview](docs/ARCHITECTURE_OVERVIEW.md)**: Detailed technical architecture and system design
+- **[Business Model](docs/BUSINESS_MODEL.md)**: Complete business strategy, pricing, and market analysis
+- **[Future Roadmap](docs/FUTURE_ROADMAP.md)**: Development plans and upcoming features
+- **[Hackathon Challenges](docs/HACKATHON_CHALLENGES.md)**: Development challenges and solutions
+
+### 🛠️ **Setup & Deployment**
+- **[Requirements.txt](requirements.txt)**: Complete list of frontend dependencies
+- **[Deployment Scripts](scripts/)**: Automated deployment and setup scripts
+- **[Environment Configuration](env.example)**: Environment variable templates
+
+### 📖 **Additional Resources**
+- **[Integration Guide](src/icp_cdn_client/README.md)**: Client library usage and examples
+- **[API Documentation](src/icp_cdn_backend/icp_cdn_backend.did)**: Candid interface definitions
+- **[Test Examples](src/icp_cdn_client/examples/)**: Code examples and integration patterns
 
 ---
 
