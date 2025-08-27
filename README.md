@@ -319,26 +319,20 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 Contact & BUIDL Profile
 
 ### Team Contact
-- **Email**: [Your Email]
-- **GitHub**: [Your GitHub Profile]
-- **Discord**: [Your Discord Handle]
+- **Email**: blazeblessan123@gmail.com, 
+
 
 ### BUIDL Profile
-- **DoraHacks Profile**: [Your BUIDL Profile Link]
-- **Project Repository**: [GitHub Repository URL]
+- **DoraHacks Profile**: https://dorahacks.io/buidl/28268
 
-### Social Links
-- **Twitter**: [@YourHandle]
-- **LinkedIn**: [Your LinkedIn Profile]
-- **Website**: [Your Website]
 
----
+
 
 ## 🏆 Hackathon Submission
 
 **Project**: CanisterDrop - Decentralized CDN on ICP  
-**Track**: Infrastructure & Developer Tools  
-**Team**: [Your Team Name]  
+**Track**: Fully On Chain 
+**Team**: Jack N Jills 
 **Submission**: WCHL25 - World Computer Hackathon
 
 *Built with ❤️ on the Internet Computer Protocol*

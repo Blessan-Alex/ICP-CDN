@@ -4,9 +4,6 @@ This directory contains utility scripts for managing the ICP CDN project.
 
 ## Files
 
-### `pinataguide.txt`
-Contains best practices and guidelines for using Pinata with the ICP CDN project.
-
 ### `update_frontend_env.cjs`
 Updates the frontend `.env` file with the latest canister IDs from DFX.
 - **Usage**: Run after `dfx deploy` to update frontend environment variables
@@ -14,28 +11,15 @@ Updates the frontend `.env` file with the latest canister IDs from DFX.
 
 ## Deployment Scripts
 
-### `deployment/deploy.sh`
-Main deployment script that builds and deploys the entire project.
-- **Usage**: `./scripts/deployment/deploy.sh`
+### `deployment/full_deploy.sh`
+Complete deployment script that handles the entire deployment process.
+- **Usage**: `./scripts/deployment/full_deploy.sh`
 - **What it does**: 
-  - Builds backend and frontend
-  - Deploys to local network
+  - Prompts for Pinata JWT and Gateway credentials
   - Updates environment variables
-
-### `deployment/deploy_with_env.sh`
-Deployment script that includes environment variable setup.
-- **Usage**: `./scripts/deployment/deploy_with_env.sh`
-- **What it does**: 
-  - Runs setup_env.sh first
-  - Then runs deploy.sh
-
-### `deployment/setup_env.sh`
-Sets up environment variables for the project.
-- **Usage**: `./scripts/deployment/setup_env.sh`
-- **What it does**:
-  - Prompts for Pinata JWT and Gateway
-  - Updates .env files with the provided values
-  - Updates frontend environment variables
+  - Deploys canisters to local network
+  - Updates frontend environment with canister IDs
+  - Provides next steps for frontend startup
 
 ## Environment Variables Required
 
