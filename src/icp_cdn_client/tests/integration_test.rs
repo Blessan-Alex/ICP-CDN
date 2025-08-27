@@ -2,6 +2,7 @@ use icp_cdn_client::{CdnCanisterClient, CdnClient, UserTier, UserAccount};
 use candid::Principal;
 
 // Mock canister ID for testing
+// In a real implementation, this would be configured via environment variables
 const MOCK_CANISTER_ID: &str = "rrkah-fqaaa-aaaaa-aaaaq-cai";
 
 #[tokio::test]

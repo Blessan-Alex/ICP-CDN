@@ -104,8 +104,8 @@ export default function EnhancedUpload() {
         size: Number(file.size),
         cid: file.cid,
         ipfsHash: file.cid, // Using CID as IPFS hash for now
-        url: `https://gateway.pinata.cloud/ipfs/${file.cid}`,
-        gatewayUrl: `https://gateway.pinata.cloud/ipfs/${file.cid}`,
+        url: `https://${import.meta.env.VITE_PINATA_GATEWAY || 'gateway.pinata.cloud'}/ipfs/${file.cid}`,
+        gatewayUrl: `https://${import.meta.env.VITE_PINATA_GATEWAY || 'gateway.pinata.cloud'}/ipfs/${file.cid}`,
         uploadedAt: new Date(Number(file.uploaded_at) / 1000000).toISOString(), // Convert nanoseconds to milliseconds
         resultMessage: `Previously uploaded file: ${file.name}`
       }));
@@ -330,8 +330,8 @@ export default function EnhancedUpload() {
         size: file.size,
         cid: cid,
         ipfsHash: ipfsHash,
-        url: ipfsHash ? `https://gateway.pinata.cloud/ipfs/${ipfsHash}` : null,
-        gatewayUrl: ipfsHash ? `https://gateway.pinata.cloud/ipfs/${ipfsHash}` : null,
+        url: ipfsHash ? `https://${import.meta.env.VITE_PINATA_GATEWAY || 'gateway.pinata.cloud'}/ipfs/${ipfsHash}` : null,
+        gatewayUrl: ipfsHash ? `https://${import.meta.env.VITE_PINATA_GATEWAY || 'gateway.pinata.cloud'}/ipfs/${ipfsHash}` : null,
         uploadedAt: new Date().toISOString(),
         resultMessage: resultMessage
       };
@@ -343,7 +343,7 @@ export default function EnhancedUpload() {
         success: true, 
         cid: cid,
         ipfsHash: ipfsHash,
-        gatewayUrl: ipfsHash ? `https://gateway.pinata.cloud/ipfs/${ipfsHash}` : null,
+        gatewayUrl: ipfsHash ? `https://${import.meta.env.VITE_PINATA_GATEWAY || 'gateway.pinata.cloud'}/ipfs/${ipfsHash}` : null,
         resultMessage: resultMessage
       };
     } catch (error) {

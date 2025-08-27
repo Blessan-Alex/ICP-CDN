@@ -452,11 +452,11 @@ export default function CacheDashboard() {
               <div className="w-full bg-neutral-700 rounded-full h-2 mb-1">
                 <div
                   className="bg-gradient-to-r from-green-500 to-green-700 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.min((cacheStats?.userCacheBytes || 0) / (20 * 1024 * 1024) * 100, 100)}%` }}
+                  style={{ width: `${Math.min((cacheStats?.userCacheBytes || 0) / ((import.meta.env.VITE_CACHE_LIMIT_MB || 20) * 1024 * 1024) * 100, 100)}%` }}
                 ></div>
               </div>
               <div className="text-xs text-neutral-500">
-                {Math.round((cacheStats?.userCacheBytes || 0) / (20 * 1024 * 1024) * 100)}% of your 20MB limit
+                {Math.round((cacheStats?.userCacheBytes || 0) / ((import.meta.env.VITE_CACHE_LIMIT_MB || 20) * 1024 * 1024) * 100)}% of your {import.meta.env.VITE_CACHE_LIMIT_MB || 20}MB limit
               </div>
             </div>
           </motion.div>

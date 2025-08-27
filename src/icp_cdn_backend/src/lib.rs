@@ -7,7 +7,7 @@ use image::{imageops, GenericImageView};
 
 // HTTP Outcall types for external requests
 use ic_cdk::api::management_canister::http_request::{
-    CanisterHttpRequestArgument, HttpResponse, HttpHeader, HttpMethod, TransformContext, TransformFunc
+    CanisterHttpRequestArgument, HttpResponse, HttpHeader, HttpMethod, TransformContext
 };
 
 #[derive(CandidType, Deserialize, Clone)]
@@ -180,10 +180,28 @@ struct PerformanceMetrics {
 const MAX_CACHE_ITEMS: usize = 1000; // Maximum number of items in cache
 const MAX_CACHE_SIZE_BYTES: u64 = 20 * 1024 * 1024; // 20MB cache limit (global)
 
+// Configuration function to get environment variables
+fn get_env_var(key: &str, default: &str) -> String {
+    // In ICP canisters, we can't directly access process.env
+    // This is a placeholder for environment variable access
+    // In a real implementation, this would be configured through canister settings
+    match key {
+        "DFX_REPLICA_HOST" | "VITE_DFX_REPLICA_HOST" => "http://127.0.0.1:4943".to_string(),
+        "CANISTER_ID_ICP_CDN_BACKEND" | "VITE_CANISTER_ID_BACKEND" => "uxrrr-q7777-77774-qaaaq-cai".to_string(),
+        "CANISTER_ID_ICP_CDN_FRONTEND" | "VITE_CANISTER_ID_FRONTEND" => "u6s2n-gx777-77774-qaaba-cai".to_string(),
+        "CANISTER_ID_INTERNET_IDENTITY" | "VITE_CANISTER_ID_INTERNET_IDENTITY" => "uzt4z-lp777-77774-qaabq-cai".to_string(),
+        "VITE_PINATA_JWT" | "PINATA_JWT" => "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIyZDhiYzBiNC0xNjllLTQzNzQtOTI5Yy05ZmJhNjEwODNmMTciLCJlbWFpbCI6ImtoYXRyaXNha3NoaTMwMDNAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6IjdjN2FjMjY3YTdhMzU2ZWVmN2Y3Iiwic2NvcGVkS2V5U2VjcmV0IjoiODE2ZjMyZjk4NTFjY2Q1YzZmNjhlNjQzMDA2NjZlZGQ4MzkxMTEzY2RkMDhhMjMzNDdkZmMzY2NhMDNlOTU1NCIsImV4cCI6MTc4Mzc4MTcwOH0.Qv8HE9i-HPBOJ2jvtnrlEGnttG6kIEUQ-SaKz4AznwE".to_string(),
+        "VITE_PINATA_GATEWAY" | "PINATA_GATEWAY" => "gateway.pinata.cloud".to_string(),
+        _ => default.to_string(),
+    }
+}
+
 // Pinata API configuration
 // NOTE: In production, this should be managed via encrypted secrets
 // For this hackathon MVP, we're using a real JWT from environment
-const PINATA_JWT: &str = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIyZDhiYzBiNC0xNjllLTQzNzQtOTI5Yy05ZmJhNjEwODNmMTciLCJlbWFpbCI6ImtoYXRyaXNha3NoaTMwMDNAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6IjdjN2FjMjY3YTdhMzU2ZWVmN2Y3Iiwic2NvcGVkS2V5U2VjcmV0IjoiODE2ZjMyZjk4NTFjY2Q1YzZmNjhlNjQzMDA2NjZlZGQ4MzkxMTEzY2RkMDhhMjMzNDdkZmMzY2NhMDNlOTU1NCIsImV4cCI6MTc4Mzc4MTcwOH0.Qv8HE9i-HPBOJ2jvtnrlEGnttG6kIEUQ-SaKz4AznwE";
+fn get_pinata_jwt() -> String {
+    get_env_var("VITE_PINATA_JWT", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIyZDhiYzBiNC0xNjllLTQzNzQtOTI5Yy05ZmJhNjEwODNmMTciLCJlbWFpbCI6ImtoYXRyaXNha3NoaTMwMDNAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6IjdjN2FjMjY3YTdhMzU2ZWVmN2Y3Iiwic2NvcGVkS2V5U2VjcmV0IjoiODE2ZjMyZjk4NTFjY2Q1YzZmNjhlNjQzMDA2NjZlZGQ4MzkxMTEzY2RkMDhhMjMzNDdkZmMzY2NhMDNlOTU1NCIsImV4cCI6MTc4Mzc4MTcwOH0.Qv8HE9i-HPBOJ2jvtnrlEGnttG6kIEUQ-SaKz4AznwE")
+}
 
 thread_local! {
     static USER_FILES: RefCell<HashMap<String, Vec<IpfsFile>>> = RefCell::new(HashMap::new());
@@ -642,7 +660,7 @@ async fn upload_content(cid: String, content_type: String, content: Vec<u8>) -> 
     let caller_principal = ic_cdk::api::caller();
     
     // Get user account to check tier and Pinata status
-    let user_account = ACCOUNTS.with(|accounts| {
+    let _user_account = ACCOUNTS.with(|accounts| {
         let accounts = accounts.borrow();
         accounts.get(&caller_principal).cloned().unwrap_or_else(|| UserAccount {
             user_principal: caller_principal,
@@ -898,7 +916,7 @@ async fn upload_to_pinata(content: &[u8], filename: &str, content_type: &str, pi
     
     // Create headers for the POST request
     let headers = vec![
-        HttpHeader { name: "Authorization".to_string(), value: format!("Bearer {}", PINATA_JWT) },
+        HttpHeader { name: "Authorization".to_string(), value: format!("Bearer {}", get_pinata_jwt()) },
         HttpHeader { name: "Content-Type".to_string(), value: format!("multipart/form-data; boundary={}", boundary) },
     ];
     
@@ -986,7 +1004,7 @@ async fn upload_to_pinata_simple(content: &[u8], filename: &str, content_type: &
     
     // Create headers for the POST request
     let headers = vec![
-        HttpHeader { name: "Authorization".to_string(), value: format!("Bearer {}", PINATA_JWT) },
+        HttpHeader { name: "Authorization".to_string(), value: format!("Bearer {}", get_pinata_jwt()) },
         HttpHeader { name: "Content-Type".to_string(), value: format!("multipart/form-data; boundary={}", boundary) },
     ];
     
@@ -1985,7 +2003,7 @@ async fn test_pinata_api_connectivity() -> Result<String, String> {
         url: url.to_string(),
         method: HttpMethod::GET,
         headers: vec![
-            HttpHeader { name: "Authorization".to_string(), value: format!("Bearer {}", PINATA_JWT) },
+            HttpHeader { name: "Authorization".to_string(), value: format!("Bearer {}", get_pinata_jwt()) },
             HttpHeader { name: "User-Agent".to_string(), value: "ICP-CDN-Test/1.0".to_string() },
         ],
         body: Some(vec![]),
@@ -2175,9 +2193,10 @@ async fn test_ipfs_gateway_http_calls() -> Result<String, String> {
     
     // Test with a known IPFS CID (IPFS logo)
     let test_cid = "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG";
+    let pinata_gateway = format!("https://{}/ipfs/", get_env_var("VITE_PINATA_GATEWAY", "gateway.pinata.cloud"));
     let ipfs_gateways = vec![
         "https://ipfs.io/ipfs/",
-        "https://gateway.pinata.cloud/ipfs/",
+        &pinata_gateway,
         "https://cloudflare-ipfs.com/ipfs/"
     ];
     
@@ -2234,8 +2253,8 @@ async fn test_ipfs_gateway_http_calls() -> Result<String, String> {
 async fn test_pinata_with_custom_jwt() -> Result<String, String> {
     ic_cdk::print("🔍 Testing Pinata upload with custom JWT token...");
     
-    // Use the new JWT token from environment
-    let custom_jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIyZDhiYzBiNC0xNjllLTQzNzQtOTI5Yy05ZmJhNjEwODNmMTciLCJlbWFpbCI6ImtoYXRyaXNha3NoaTMwMDNAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6IjdjN2FjMjY3YTdhMzU2ZWVmN2Y3Iiwic2NvcGVkS2V5U2VjcmV0IjoiODE2ZjMyZjk4NTFjY2Q1YzZmNjhlNjQzMDA2NjZlZGQ4MzkxMTEzY2RkMDhhMjMzNDdkZmMzY2NhMDNlOTU1NCIsImV4cCI6MTc4Mzc4MTcwOH0.Qv8HE9i-HPBOJ2jvtnrlEGnttG6kIEUQ-SaKz4AznwE";
+    // Use the JWT token from environment
+    let custom_jwt = get_pinata_jwt();
     
     // Create test content
     let test_content = b"Testing with custom JWT token from environment";
@@ -2313,7 +2332,7 @@ async fn test_http_canister_calls_summary() -> Result<String, String> {
     // Test 1: Basic HTTP connectivity
     ic_cdk::print("Testing basic HTTP connectivity...");
     match test_basic_http_connectivity().await {
-        Ok(result) => {
+        Ok(_result) => {
             summary.push("✅ Basic HTTP connectivity: Working");
             ic_cdk::print("Basic HTTP connectivity test passed");
         }
@@ -2326,7 +2345,7 @@ async fn test_http_canister_calls_summary() -> Result<String, String> {
     // Test 2: IPFS Gateway calls
     ic_cdk::print("Testing IPFS gateway calls...");
     match test_ipfs_gateway_http_calls().await {
-        Ok(result) => {
+        Ok(_result) => {
             summary.push("✅ IPFS Gateway calls: Working");
             ic_cdk::print("IPFS Gateway calls test passed");
         }
@@ -2357,7 +2376,7 @@ async fn test_http_canister_calls_summary() -> Result<String, String> {
     
     // Test cache retrieval
     match get_cache_entry(&test_cid) {
-        Some(entry) => {
+        Some(_entry) => {
             summary.push("✅ Cache functionality: Working");
             ic_cdk::print("Cache functionality test passed");
         }
@@ -2671,7 +2690,7 @@ async fn canister_upload(
 
 /// Canister-to-canister content retrieval function
 #[ic_cdk::query]
-fn canister_get_content(caller: Principal, cid: String) -> Result<Vec<u8>, String> {
+fn canister_get_content(_caller: Principal, cid: String) -> Result<Vec<u8>, String> {
     if cid.is_empty() {
         return Err("CID cannot be empty".to_string());
     }
@@ -2692,7 +2711,7 @@ fn canister_get_content(caller: Principal, cid: String) -> Result<Vec<u8>, Strin
 
 /// Canister-to-canister content retrieval with IPFS fallback
 #[ic_cdk::update]
-async fn canister_get_content_with_fallback(caller: Principal, cid: String) -> Result<Vec<u8>, String> {
+async fn canister_get_content_with_fallback(_caller: Principal, cid: String) -> Result<Vec<u8>, String> {
     if cid.is_empty() {
         return Err("CID cannot be empty".to_string());
     }

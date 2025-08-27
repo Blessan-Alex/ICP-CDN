@@ -1,2 +1,16 @@
-VITE_DFX_REPLICA_HOST=http://127.0.0.1:4943 
-VITE_CANISTER_ID_INTERNET_IDENTITY=be2us-64aaa-aaaaa-qaabq-cai 
+# Network configuration
+VITE_DFX_NETWORK=local
+VITE_DFX_REPLICA_HOST=http://127.0.0.1:4943
+
+# Canister IDs (replace with actual values for your project)
+VITE_CANISTER_ID_BACKEND=xxxxxx-xxxxx-xxxxx-xxxxx-cai
+VITE_CANISTER_ID_FRONTEND=xxxxxx-xxxxx-xxxxx-xxxxx-cai
+VITE_CANISTER_ID_INTERNET_IDENTITY=xxxxxx-xxxxx-xxxxx-xxxxx-cai
+
+# Pinata 
+VITE_PINATA_GATEWAY=your-subdomain.mypinata.cloud
+
+# Storage & upload configs
+VITE_PINATA_STORAGE_LIMIT_BYTES=1073741824   # 1GB
+VITE_UPLOAD_CHUNK_SIZE_KB=512
+VITE_CACHE_LIMIT_MB=20

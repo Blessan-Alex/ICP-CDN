@@ -68,6 +68,8 @@ impl CdnClient {
 
     /// Create a CDN client with the default dCDN canister ID
     pub fn default() -> Self {
+        // In a real implementation, this would be configured via environment variables
+        // For now, we use a placeholder that should be replaced with actual canister ID
         let default_canister_id = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")
             .expect("Invalid default canister ID");
         Self::new(default_canister_id)
@@ -277,6 +279,8 @@ impl CdnCanisterClient {
 
     /// Create a CDN canister client with the default dCDN canister ID
     pub fn default() -> Self {
+        // In a real implementation, this would be configured via environment variables
+        // For now, we use a placeholder that should be replaced with actual canister ID
         let default_canister_id = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")
             .expect("Invalid default canister ID");
         Self::new(default_canister_id)

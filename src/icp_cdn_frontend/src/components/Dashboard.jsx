@@ -84,10 +84,10 @@ export default function Dashboard() {
   const fileInputRef = useRef(null);
   
   // Chunk size for uploads (500KB chunks to avoid payload limits)
-  const CHUNK_SIZE = 512 * 1024;
+  const CHUNK_SIZE = (import.meta.env.VITE_UPLOAD_CHUNK_SIZE_KB || 512) * 1024;
 
   // Pinata storage limit in bytes
-  const PINATA_STORAGE_LIMIT = 1073741824; // 1 GB
+  const PINATA_STORAGE_LIMIT = import.meta.env.VITE_PINATA_STORAGE_LIMIT_BYTES || 1073741824; // 1 GB
 
   // Per-file progress and status
   const [fileProgress, setFileProgress] = useState({}); // { filename: percent }

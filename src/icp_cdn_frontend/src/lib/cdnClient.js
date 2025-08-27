@@ -61,7 +61,7 @@ export class CdnClient {
 
     // Create a CDN client with the default dCDN canister ID
     static default(agent) {
-        const defaultCanisterId = Principal.fromText("rrkah-fqaaa-aaaaa-aaaaq-cai");
+        const defaultCanisterId = Principal.fromText(import.meta.env.VITE_CANISTER_ID_BACKEND || "rrkah-fqaaa-aaaaa-aaaaq-cai");
         return new CdnClient(defaultCanisterId, agent);
     }
 
