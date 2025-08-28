@@ -12,6 +12,12 @@ export const navItems = [
   { label: "Mission", href: "#mission", type: "scroll" },
 ];
 
+export const dashboardNavItem = {
+  label: "Upload", 
+  href: "/upload", 
+  type: "page"
+};
+
 export const enhancedNavItems = [
   { label: "Cache", href: "/cache", type: "page" },
   { label: "Tiers", href: "/tiers", type: "page" },
@@ -76,4 +82,79 @@ export const features = [
     description:
       "End-to-end content integrity with cryptographic verification. Every file is tamper-proof with hash verification, ensuring your content remains secure and authentic throughout the delivery chain.",
   },
+];
+
+export const checklistItems = [
+  {
+    title: "Code merge made easy",
+    description:
+      "Track the performance of your VR apps and gain insights into user behavior.",
+  },
+  {
+    title: "Review code without worry",
+    description:
+      "Track the performance of your VR apps and gain insights into user behavior.",
+  },
+  {
+    title: "AI Assistance to reduce time",
+    description:
+      "Track the performance of your VR apps and gain insights into user behavior.",
+  },
+  {
+    title: "Share work in minutes",
+    description:
+      "Track the performance of your VR apps and gain insights into user behavior.",
+  },
+];
+
+
+export const pricingOptions = [
+  {
+    title: "Free",
+    price: "$0",
+    features: [
+      "Private board sharing",
+      "5 Gb Storage",
+      "Web Analytics",
+      "Private Mode",
+    ],
+  },
+  {
+    title: "Pro",
+    price: "$10",
+    features: [
+      "Private board sharing",
+      "10 Gb Storage",
+      "Web Analytics (Advance)",
+      "Private Mode",
+    ],
+  },
+  {
+    title: "Enterprise",
+    price: "$200",
+    features: [
+      "Private board sharing",
+      "Unlimited Storage",
+      "High Performance Network",
+      "Private Mode",
+    ],
+  },
+];
+
+export const resourcesLinks = [
+  { href: "#", text: "Documentation" },
+  { href: "#", text: "API Reference" },
+  { href: "#", text: "GitHub" },
+];
+
+export const platformLinks = [
+  { href: "#", text: "Features" },
+  { href: "#", text: "Pricing" },
+  { href: "#", text: "Support" },
+];
+
+export const communityLinks = [
+  { href: "#", text: "Discord" },
+  { href: "#", text: "Twitter" },
+  { href: "#", text: "Blog" },
 ];
