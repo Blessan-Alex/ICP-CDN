@@ -12,9 +12,15 @@
 
 # generated files
 **/declarations/
+src/declarations/
+src/icp_cdn_frontend/declarations/
 
 # rust
 target/
+
+# wasm files
+*.wasm
+*.wasm.gz
 
 # frontend code
 node_modules/
