@@ -507,5 +507,22 @@ export class CdnClient {
     }
 }
 
-// REMOVED: uploadAssetDefault, getAssetDefault, getAssetWithFallbackDefault
-// See archived_unused/20250828-0706/src/icp_cdn_frontend/src/lib/cdnClient.js for original
+// ===== CONVENIENCE FUNCTIONS (matching Rust library) =====
+
+// Default upload function
+export async function uploadAssetDefault(content, contentType, cyclesPayment = CYCLES_SMALL_UPLOAD) {
+    // This would need to be called with a properly initialized client
+    throw new Error("uploadAssetDefault requires an initialized CdnClient instance");
+}
+
+// Default get asset function
+export async function getAssetDefault(cid) {
+    // This would need to be called with a properly initialized client
+    throw new Error("getAssetDefault requires an initialized CdnClient instance");
+}
+
+// Default get asset with fallback function
+export async function getAssetWithFallbackDefault(cid) {
+    // This would need to be called with a properly initialized client
+    throw new Error("getAssetWithFallbackDefault requires an initialized CdnClient instance");
+}
