@@ -73,3 +73,17 @@ coverage/
 
 # Stores VSCode versions used for testing VSCode extensions
 .vscode-test
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+
+# Temporary scripts
+*_clean_*.sh
+fix_*.sh
+create_*.sh
+
+# Additional environment files
+.env.backup
+env.production
