@@ -1,11 +1,32 @@
 {
     "compilerOptions": {
-        "strict": true,
         "target": "ES2020",
-        "experimentalDecorators": true,
-        "strictPropertyInitialization": false,
+        "module": "ESNext",
         "moduleResolution": "node",
         "allowJs": true,
-        "outDir": "HACK_BECAUSE_OF_ALLOW_JS"
-    }
+        "strict": true,
+        "esModuleInterop": true,
+        "skipLibCheck": true,
+        "forceConsistentCasingInFileNames": true,
+        "experimentalDecorators": true,
+        "strictPropertyInitialization": false,
+        "resolveJsonModule": true,
+        "isolatedModules": true,
+        "noEmit": true,
+        "jsx": "react-jsx"
+    },
+    "include": [
+        "src/**/*",
+        "**/*.ts",
+        "**/*.tsx",
+        "**/*.js",
+        "**/*.jsx"
+    ],
+    "exclude": [
+        "node_modules",
+        "dist",
+        "build",
+        ".dfx",
+        "target"
+    ]
 }
