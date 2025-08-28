@@ -2,7 +2,7 @@ import { Menu, X, Sun, Moon } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import logo from "../assets/logo.png";
-import { navItems, dashboardNavItem, enhancedNavItems } from "../constants";
+import { navItems, enhancedNavItems } from "../constants";
 import { IoIosArrowDown } from "react-icons/io";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../AuthContext";
@@ -145,7 +145,7 @@ const Navbar = () => {
             <button
               onClick={() => {
                 if (isLoggedIn) {
-                  handleNavClick(dashboardNavItem.href, dashboardNavItem.type);
+                  handleNavClick("/upload", "page");
                 } else {
                   // Show login prompt
                   handleAuthClick();
@@ -156,10 +156,10 @@ const Navbar = () => {
                   ? "bg-orange-600 text-white cursor-default"
                   : "bg-gradient-to-r from-orange-500 to-orange-700 hover:from-orange-600 hover:to-orange-800"
               }`}
-              aria-label={dashboardNavItem.label}
+              aria-label="Upload"
               tabIndex={0}
             >
-              {dashboardNavItem.label}
+              Upload
             </button>
             <button
               onClick={handleAuthClick}
@@ -254,7 +254,7 @@ const Navbar = () => {
                 <button
                   onClick={() => {
                     if (isLoggedIn) {
-                      handleNavClick(dashboardNavItem.href, dashboardNavItem.type);
+                      handleNavClick("/upload", "page");
                     } else {
                       // Show login prompt
                       handleAuthClick();
@@ -265,10 +265,10 @@ const Navbar = () => {
                       ? "bg-orange-600 text-white cursor-default"
                       : "bg-gradient-to-r from-orange-500 to-orange-700"
                   }`}
-                  aria-label={dashboardNavItem.label}
+                  aria-label="Upload"
                   tabIndex={0}
                 >
-                  {dashboardNavItem.label}
+                  Upload
                 </button>
                 <button
                   onClick={handleAuthClick}
