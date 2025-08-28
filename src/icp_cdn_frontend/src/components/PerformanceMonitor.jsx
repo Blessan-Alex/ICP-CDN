@@ -147,54 +147,54 @@ export default function PerformanceMonitor() {
 
 
 
-      // Test 3: LRU eviction demo
+      // Test 2: Pinata API connectivity
       try {
-        const lruTest = await backend.test_lru_eviction_demo();
-        if (lruTest.Ok) {
+        const pinataTest = await backend.test_pinata_api_connectivity();
+        if (pinataTest.Ok) {
           tests.push({
-            name: 'LRU Eviction',
+            name: 'Pinata API Connectivity',
             status: 'success',
-            result: lruTest.Ok,
+            result: pinataTest.Ok,
             duration: Date.now() - startTime
           });
-        } else if (lruTest.Err) {
+        } else if (pinataTest.Err) {
           tests.push({
-            name: 'LRU Eviction',
+            name: 'Pinata API Connectivity',
             status: 'error',
-            result: lruTest.Err,
+            result: pinataTest.Err,
             duration: Date.now() - startTime
           });
         }
       } catch (error) {
         tests.push({
-          name: 'LRU Eviction',
+          name: 'Pinata API Connectivity',
           status: 'error',
           result: error.message,
           duration: Date.now() - startTime
         });
       }
 
-      // Test 4: Complete real flow
+      // Test 3: Simple Pinata upload
       try {
-        const flowTest = await backend.test_complete_real_flow();
-        if (flowTest.Ok) {
+        const uploadTest = await backend.test_simple_pinata_upload();
+        if (uploadTest.Ok) {
           tests.push({
-            name: 'Complete Real Flow',
+            name: 'Simple Pinata Upload',
             status: 'success',
-            result: flowTest.Ok,
+            result: uploadTest.Ok,
             duration: Date.now() - startTime
           });
-        } else if (flowTest.Err) {
+        } else if (uploadTest.Err) {
           tests.push({
-            name: 'Complete Real Flow',
+            name: 'Simple Pinata Upload',
             status: 'error',
-            result: flowTest.Err,
+            result: uploadTest.Err,
             duration: Date.now() - startTime
           });
         }
       } catch (error) {
         tests.push({
-          name: 'Complete Real Flow',
+          name: 'Simple Pinata Upload',
           status: 'error',
           result: error.message,
           duration: Date.now() - startTime

@@ -134,7 +134,7 @@ export default function CanisterToCanisterDemo() {
           ...prev, 
           canisterGetContent: { 
             status: 'success', 
-            message: `Canister get content successful! Content: "${content}"`,
+            message: content, // Just show the content without wrapper
             data: { content, cid, size: result.Ok.length }
           } 
         }));
@@ -201,7 +201,7 @@ export default function CanisterToCanisterDemo() {
           ...prev, 
           canisterGetContentWithFallback: { 
             status: 'success', 
-            message: `Canister get content with fallback successful! Content: "${content}"`,
+            message: content, // Just show the content without wrapper
             data: { content, cid, size: result.Ok.length }
           } 
         }));

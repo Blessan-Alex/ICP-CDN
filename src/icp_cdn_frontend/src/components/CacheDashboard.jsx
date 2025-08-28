@@ -76,9 +76,9 @@ export default function CacheDashboard() {
     try {
       console.log('Loading cache statistics...');
       
-      // Get basic cache statistics (global)
-      const stats = await backend.test_get_cache_stats();
-      console.log('Global cache stats result:', stats);
+      // Get detailed cache statistics (includes all the info we need)
+      const detailed = await backend.get_detailed_cache_stats();
+      console.log('Detailed cache stats result:', detailed);
       
       // Get current user's cache usage
       const userCacheUsageResult = await backend.get_current_user_cache_usage();
@@ -89,45 +89,41 @@ export default function CacheDashboard() {
         userCacheBytes = Number(userCacheUsageResult.Ok);
       }
       
+      // Get actual cache entry count
+      const actualEntryCount = await backend.get_cache_entry_count();
+      console.log('Actual cache entry count:', actualEntryCount);
+      
       setCacheStats({
-        entries: Number(stats[0]),
+        entries: Number(actualEntryCount),
         userCacheBytes: userCacheBytes
       });
 
       // Get LRU statistics
-      const lru = await backend.test_get_lru_stats();
-      console.log('LRU stats result:', lru);
-      
-      setLruStats({
-        queueLength: Number(lru[0]),
-        queueItems: lru[1]
-      });
-
-      // Get detailed performance metrics
       try {
-        const detailed = await backend.get_detailed_cache_stats();
-        console.log('Detailed stats result:', detailed);
+        const lru = await backend.get_lru_stats();
+        console.log('LRU stats result:', lru);
         
-        setDetailedStats({
-          totalRequests: Number(detailed.total_requests) || 0,
-          cacheHits: Number(detailed.cache_hits) || 0,
-          cacheMisses: Number(detailed.cache_misses) || 0,
-          avgResponseTime: Number(detailed.avg_response_time_ms) || 0,
-          totalCacheSize: Number(detailed.total_cache_size_bytes) || 0,
-          cacheUtilization: Number(detailed.cache_utilization_percent) || 0
+        setLruStats({
+          queueLength: Number(lru[0]),
+          queueItems: lru[1]
         });
-      } catch (detailedError) {
-        console.warn('Failed to load detailed stats:', detailedError);
-        // Reset to default values on error
-        setDetailedStats({
-          totalRequests: 0,
-          cacheHits: 0,
-          cacheMisses: 0,
-          avgResponseTime: 0,
-          totalCacheSize: 0,
-          cacheUtilization: 0
+      } catch (lruError) {
+        console.warn('Failed to load LRU stats:', lruError);
+        setLruStats({
+          queueLength: Number(actualEntryCount),
+          queueItems: []
         });
       }
+
+      // Set detailed performance metrics from the data we already got
+      setDetailedStats({
+        totalRequests: Number(detailed.total_requests) || 0,
+        cacheHits: Number(detailed.cache_hits) || 0,
+        cacheMisses: Number(detailed.cache_misses) || 0,
+        avgResponseTime: Number(detailed.avg_response_time_ms) || 0,
+        totalCacheSize: Number(detailed.total_cache_size_bytes) || 0,
+        cacheUtilization: Number(detailed.cache_utilization_percent) || 0
+      });
 
       setLastRefresh(new Date());
       console.log('Cache stats loaded successfully');

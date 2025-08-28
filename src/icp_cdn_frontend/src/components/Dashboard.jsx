@@ -37,35 +37,14 @@ const getFileIcon = (file) => {
   return <FileIcon className="w-6 h-6 text-orange-400" />;
 };
 
-// Generate CID for file (same as in EnhancedUpload)
+// Generate CID for file (matching backend format)
 const generateCID = async (file) => {
-  const arrayBuffer = await file.arrayBuffer();
-  const uint8Array = new Uint8Array(arrayBuffer);
-  
-  // Simple hash function for demo purposes
-  let hash = 0;
-  for (let i = 0; i < uint8Array.length; i++) {
-    const char = uint8Array[i];
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-  
-  // Convert to base58-like string (simplified)
-  const base58Chars = '123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz';
-  let num = Math.abs(hash);
-  let cid = '';
-  
-  while (num > 0) {
-    cid = base58Chars[num % base58Chars.length] + cid;
-    num = Math.floor(num / base58Chars.length);
-  }
-  
-  // Ensure minimum length and add prefix
-  while (cid.length < 10) {
-    cid = '1' + cid;
-  }
-  
-  return 'Qm' + cid;
+  // Use the same format as the backend (Qm + hex hash)
+  const buffer = await file.arrayBuffer();
+  const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  return `Qm${hashHex.substring(0, 40)}`; // Match backend Qm format
 };
 
 export default function Dashboard() {

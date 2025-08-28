@@ -1,7 +1,7 @@
 import { AuthClient } from '@dfinity/auth-client';
 import { HttpAgent } from '@dfinity/agent';
 
-let INTERNET_IDENTITY_CANISTER_ID = import.meta.env.VITE_CANISTER_ID_INTERNET_IDENTITY || "uzt4z-lp777-77774-qaabq-cai";
+let INTERNET_IDENTITY_CANISTER_ID = import.meta.env.VITE_CANISTER_ID_INTERNET_IDENTITY || "uxrrr-q7777-77774-qaaaq-cai";
 
 let authClient = null;
 

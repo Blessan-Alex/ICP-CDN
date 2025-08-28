@@ -73,12 +73,11 @@ export class CdnClient {
 
     // ===== CORE UPLOAD FUNCTIONALITY =====
 
-    // Generate a CID for content (simplified version)
+    // Generate a CID for content (matching backend format)
     generateCid(content, contentType) {
-        // In a real implementation, this would use the same hashing algorithm as the Rust version
-        const timestamp = Date.now();
+        // Use the same format as the backend (Qm + hex hash)
         const contentHash = this.simpleHash(content);
-        return `Qm${contentHash}${timestamp}`;
+        return `Qm${contentHash}`;
     }
 
     // Simple hash function for demo purposes
@@ -133,11 +132,19 @@ export class CdnClient {
                 throw new Error("Invalid content type. Expected string, Uint8Array, or Array<number>");
             }
 
-            console.log('Calling upload_content with library pattern...');
-            const result = await this.backend.upload_content(cid, contentType, contentBytes);
+            console.log('Calling upload_content_with_canister_pinata with library pattern...');
+            const result = await this.backend.upload_content_with_canister_pinata(cid, contentType, contentBytes, cid);
 
             if (result.Ok) {
-                return result.Ok;
+                // Extract the actual CID from the result message
+                const resultMessage = result.Ok;
+                const cidMatch = resultMessage.match(/CID: ([A-Za-z0-9]+)/);
+                if (cidMatch && cidMatch[1]) {
+                    return cidMatch[1]; // Return the actual CID
+                } else {
+                    // Fallback: return the generated CID if we can't extract from message
+                    return cid;
+                }
             } else {
                 throw new Error(result.Err || 'Upload failed');
             }

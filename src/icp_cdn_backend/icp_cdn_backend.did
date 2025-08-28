@@ -91,6 +91,7 @@ service : {
     "test_get_cache_entry": (text) -> (variant { Ok : record { cid : text; content_type : text; size : nat64; last_accessed_ts : nat64; bytes : vec nat8; }; Err : text }) query;
     "test_get_cache_stats": () -> (nat64, nat64) query;
     "get_detailed_cache_stats": () -> (CachePerformanceMetrics) query;
+    "get_cache_entry_count": () -> (nat64) query;
     "get_cache_entry_details": (text) -> (variant { Ok : record { cid : text; content_type : text; size : nat64; last_accessed_ts : nat64; bytes : vec nat8; }; Err : text }) query;
     "manual_cache_eviction": (text) -> (variant { Ok : text; Err : text });
     "clear_cache": () -> (nat64, nat64);
@@ -98,7 +99,7 @@ service : {
     "clear_user_cache": () -> (variant { Ok : text; Err : text });
     "reset_performance_metrics": () -> (variant { Ok : text; Err : text });
     
-    "test_get_lru_stats": () -> (nat64, vec text) query;
+    "get_lru_stats": () -> (nat64, vec text) query;
     "test_lru_eviction_demo": () -> (variant { Ok : text; Err : text });
     "test_lru_access_pattern": () -> (variant { Ok : text; Err : text });
     "test_lru_touch_debug": (text) -> (variant { Ok : text; Err : text });

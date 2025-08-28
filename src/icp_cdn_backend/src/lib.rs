@@ -4,6 +4,7 @@ use std::cell::RefCell;
 use candid::{CandidType, Deserialize, Principal, Nat};
 use ic_cdk::api::caller;
 use image::{imageops, GenericImageView};
+use urlencoding;
 
 // HTTP Outcall types for external requests
 use ic_cdk::api::management_canister::http_request::{
@@ -420,17 +421,14 @@ fn touch_lru(cid: &str) {
         let mut queue = lru_queue.borrow_mut();
         
         // Find and remove the CID from its current position
-        let mut found = false;
         let mut temp_queue = VecDeque::new();
         
         // Remove the target CID and collect all others
         while let Some(item) = queue.pop_front() {
-            if item == cid {
-                found = true;
-                // Don't add it back yet - we'll add it to the end
-            } else {
+            if item != cid {
                 temp_queue.push_back(item);
             }
+            // If item == cid, we don't add it back yet - we'll add it to the end
         }
         
         // Restore the queue with the target CID at the end
@@ -439,9 +437,7 @@ fn touch_lru(cid: &str) {
         }
         
         // Add the accessed CID to the back (most recently used)
-        if found {
-            queue.push_back(cid.to_string());
-        }
+        queue.push_back(cid.to_string());
     });
 }
 
@@ -521,11 +517,20 @@ fn put_cache_entry(cid: String, cache_entry: CacheEntry) -> Result<(), String> {
             }
         }
         
+        // Check if item already exists in cache
+        let item_exists = cache.contains_key(&cid);
+        
         // Add the new item
         cache.insert(cid.clone(), cache_entry.clone());
         
-        // Add to LRU queue
-        add_to_lru(&cid);
+        // Update LRU queue
+        if item_exists {
+            // If item already existed, just touch it to move to end
+            touch_lru(&cid);
+        } else {
+            // If it's a new item, add it to the queue
+            add_to_lru(&cid);
+        }
         
         // Update user's cache usage
         update_user_cache_usage(caller_principal, cache_entry.size as i64);
@@ -692,50 +697,8 @@ fn get_available_tiers() -> Vec<TierInfo> {
     ]
 }
 
-// Enhanced upload function with tier-based Pinata integration
-#[ic_cdk::update]
-async fn upload_content(cid: String, content_type: String, content: Vec<u8>) -> Result<String, String> {
-    if cid.is_empty() {
-        return Err("CID cannot be empty".to_string());
-    }
-    
-    if content.is_empty() {
-        return Err("Content cannot be empty".to_string());
-    }
-    
-    let caller_principal = ic_cdk::api::caller();
-    
-    // Get user account to check tier and Pinata status
-    let _user_account = ACCOUNTS.with(|accounts| {
-        let accounts = accounts.borrow();
-        accounts.get(&caller_principal).cloned().unwrap_or_else(|| UserAccount {
-            user_principal: caller_principal,
-            cycles_balance: 0,
-            tier: UserTier::Free,
-            cache_usage_bytes: 0,
-            pinata_enabled: false,
-        })
-    });
-    
-    // Create a cache entry for the uploaded content
-    let cache_entry = CacheEntry {
-        cid: cid.clone(),
-        content_type: content_type.clone(),
-        size: content.len() as u64,
-        last_accessed_ts: ic_cdk::api::time(),
-        bytes: content.clone(),
-    };
-    
-    // Store in cache (this will check user's cache limits)
-    if let Err(e) = put_cache_entry(cid.clone(), cache_entry) {
-        return Err(format!("Failed to cache uploaded content: {}", e));
-    }
-    
-    // For now, only store in cache (Pinata upload handled by frontend via backend server)
-    let upload_result = format!("Content uploaded to cache. CID: {} (Pinata upload handled separately)", cid);
-    
-    Ok(upload_result)
-}
+// REMOVED: upload_content function moved to archived_unused/backend-20250828-0804/lib.rs.backup
+// This function has been removed as it is superseded by upload_content_with_canister_pinata
 
 // New structs for tier information
 #[derive(CandidType, Deserialize, Clone)]
@@ -782,33 +745,11 @@ fn remove_cache_entry(cid: &str) -> bool {
         // Update user's cache usage (we need to find which user owns this CID)
         // For now, we'll update all users' cache usage since we don't track ownership
         // In a production system, we'd track which user owns which cache entry
-        update_user_cache_usage_on_removal(cid);
+        // REMOVED: update_user_cache_usage_on_removal function moved to archived_unused/backend-20250828-0804/lib.rs.backup
         remove_from_lru(cid);
     }
     
     removed
-}
-
-// Helper function to update user cache usage when an entry is removed
-fn update_user_cache_usage_on_removal(cid: &str) {
-    // Get the size of the removed entry
-    let removed_size = CACHE.with(|cache| {
-        let cache = cache.borrow();
-        cache.get(cid).map(|entry| entry.size).unwrap_or(0)
-    });
-    
-    if removed_size > 0 {
-        // Update all users' cache usage (simplified approach)
-        // In production, we'd track which user owns which cache entry
-        ACCOUNTS.with(|accounts| {
-            let mut accounts = accounts.borrow_mut();
-            for account in accounts.values_mut() {
-                if account.cache_usage_bytes >= removed_size {
-                    account.cache_usage_bytes = account.cache_usage_bytes.saturating_sub(removed_size);
-                }
-            }
-        });
-    }
 }
 
 // Additional LRU cache management functions
@@ -828,6 +769,21 @@ fn get_lru_queue_stats() -> (u64, Vec<String>) {
         let queue_length = queue.len() as u64;
         let queue_items: Vec<String> = queue.iter().cloned().collect();
         (queue_length, queue_items)
+    })
+}
+
+// Public function to get LRU queue statistics
+#[ic_cdk::query]
+fn get_lru_stats() -> (u64, Vec<String>) {
+    get_lru_queue_stats()
+}
+
+// Public function to get actual cache statistics
+#[ic_cdk::query]
+fn get_cache_entry_count() -> u64 {
+    CACHE.with(|cache| {
+        let cache = cache.borrow();
+        cache.len() as u64
     })
 }
 
@@ -870,10 +826,16 @@ async fn fetch_from_ipfs(cid: String) -> Result<Vec<u8>, String> {
 // Private async function to fetch content from IPFS using real HTTP outcalls
 async fn fetch_from_ipfs_internal(cid: &str) -> Result<Vec<u8>, String> {
     // Construct the full URL for a public IPFS gateway
-    let ipfs_gateway = get_env_var("IPFS_GATEWAY", "https://cloudflare-ipfs.com");
-    let url = format!("{}/ipfs/{}", ipfs_gateway, cid);
+    // Use the same Pinata gateway that upload functionality uses for consistency
+    let ipfs_gateway = get_env_var("PINATA_GATEWAY", "gateway.pinata.cloud");
+    let full_gateway_url = format!("https://{}", ipfs_gateway);
+    
+    // URL encode the CID to handle any special characters
+    let encoded_cid = urlencoding::encode(cid);
+    let url = format!("{}/ipfs/{}", full_gateway_url, encoded_cid);
     
     ic_cdk::print(format!("Making HTTP outcall to IPFS gateway: {}", url));
+    ic_cdk::print(format!("Original CID: {}, Encoded CID: {}", cid, encoded_cid));
     
     // Create the HTTP request
     let request = CanisterHttpRequestArgument {
@@ -1133,64 +1095,12 @@ fn resize_image(image_bytes: &[u8], target_width: u32) -> Result<Vec<u8>, String
     Ok(output)
 }
 
-// Test functions for the new dCDN features
-#[ic_cdk::update]
-fn test_create_cache_entry(cid: String, content_type: String, size: u64, content: Vec<u8>) -> Result<String, String> {
-    if cid.is_empty() {
-        return Err("CID cannot be empty".to_string());
-    }
-    
-    let cache_entry = CacheEntry {
-        cid: cid.clone(),
-        content_type,
-        size,
-        last_accessed_ts: ic_cdk::api::time(),
-        bytes: content,
-    };
-    
-    put_cache_entry(cid.clone(), cache_entry)?;
-    
-    Ok(format!("Cache entry created for CID: {}", cid))
-}
-
-#[ic_cdk::query]
-fn test_get_cache_entry(cid: String) -> Result<CacheEntry, String> {
-    if cid.is_empty() {
-        return Err("CID cannot be empty".to_string());
-    }
-    
-    if let Some(entry) = get_cache_entry(&cid) {
-        Ok(entry)
-    } else {
-        Err("Cache entry not found".to_string())
-    }
-}
-
-#[ic_cdk::update]
-fn test_create_user_account(principal: Principal, initial_balance: u128) -> Result<String, String> {
-    let user_account = UserAccount {
-        user_principal: principal,
-        cycles_balance: initial_balance,
-        tier: UserTier::Free,
-        cache_usage_bytes: 0,
-        pinata_enabled: false,
-    };
-    
-    ACCOUNTS.with(|accounts| {
-        let mut accounts = accounts.borrow_mut();
-        accounts.insert(principal, user_account);
-    });
-    
-    Ok(format!("User account created for principal: {} with balance: {}", principal, initial_balance))
-}
-
-#[ic_cdk::query]
-fn test_get_user_account(principal: Principal) -> Result<UserAccount, String> {
-    ACCOUNTS.with(|accounts| {
-        let accounts = accounts.borrow();
-        accounts.get(&principal).cloned().ok_or_else(|| "User account not found".to_string())
-    })
-}
+// REMOVED: test functions moved to archived_unused/backend-20250828-0804/lib.rs.backup
+// The following test functions have been removed as they are not used by the frontend:
+// - test_create_cache_entry (lines 1137-1150)
+// - test_get_cache_entry (lines 1156-1165) 
+// - test_create_user_account (lines 1169-1185)
+// - test_get_user_account (lines 1187-1195)
 
 // Get current user's cache usage
 #[ic_cdk::query]
@@ -1223,179 +1133,20 @@ fn get_current_user_cache_usage() -> Result<u64, String> {
     })
 }
 
-#[ic_cdk::query]
-fn test_get_cache_stats() -> (u64, u64) {
-    let (total_entries, total_bytes, _) = get_cache_stats();
-    (total_entries, total_bytes)
-}
+// REMOVED: additional test functions moved to archived_unused/backend-20250828-0804/lib.rs.backup
+// The following test functions have been removed as they are not used by the frontend:
+// - test_get_cache_stats (lines 1226-1230)
+// - test_get_lru_stats (lines 1233-1237)
+// - test_get_detailed_cache_stats (lines 1238-1244)
+// - test_clear_cache (lines 1246-1250)
+// - test_remove_cache_entry (lines 1251-1262)
+// - test_get_accounts_stats (lines 1264-1272)
 
-// New test functions for LRU functionality
-#[ic_cdk::query]
-fn test_get_lru_stats() -> (u64, Vec<String>) {
-    get_lru_queue_stats()
-}
-
-#[ic_cdk::query]
-fn test_get_detailed_cache_stats() -> (u64, u64, u64) {
-    let (total_entries, total_bytes, _) = get_cache_stats();
-    let (max_entries, _) = get_cache_config();
-    let (_lru_queue_length, _) = get_lru_queue_stats();
-    (total_entries, total_bytes, max_entries as u64)
-}
-
-#[ic_cdk::update]
-fn test_clear_cache() -> (u64, u64) {
-    clear_cache()
-}
-
-#[ic_cdk::update]
-fn test_remove_cache_entry(cid: String) -> Result<String, String> {
-    if cid.is_empty() {
-        return Err("CID cannot be empty".to_string());
-    }
-    
-    if remove_cache_entry(&cid) {
-        Ok(format!("Cache entry removed for CID: {}", cid))
-    } else {
-        Err("Cache entry not found for CID: {}".to_string())
-    }
-}
-
-#[ic_cdk::query]
-fn test_get_accounts_stats() -> (u64, u128) {
-    ACCOUNTS.with(|accounts| {
-        let accounts = accounts.borrow();
-        let total_accounts = accounts.len() as u64;
-        let total_cycles: u128 = accounts.values().map(|account| account.cycles_balance).sum();
-        (total_accounts, total_cycles)
-    })
-}
-
-// Test function to demonstrate LRU eviction
-#[ic_cdk::update]
-fn test_lru_eviction_demo() -> Result<String, String> {
-    // Clear existing cache first
-    clear_cache();
-    
-    // Create more cache entries than max_cache_items to trigger eviction
-    let (max_cache_items, _) = get_cache_config();
-    let num_entries = max_cache_items + 5;
-    let mut created_cids = Vec::new();
-    
-    for i in 0..num_entries {
-        let cid = format!("test_cid_{}", i);
-        let cache_entry = CacheEntry {
-            cid: cid.clone(),
-            content_type: "text/plain".to_string(),
-            size: 1024, // 1KB each
-            last_accessed_ts: ic_cdk::api::time(),
-            bytes: vec![b'a'; 1024], // 1KB of data
-        };
-        
-        put_cache_entry(cid.clone(), cache_entry)?;
-        created_cids.push(cid);
-    }
-    
-    // Get stats to verify eviction
-    let (total_entries, _total_bytes, max_entries) = get_cache_stats();
-    let (lru_queue_length, _) = get_lru_queue_stats();
-    
-    // Verify that cache size is maintained at max_cache_items
-    if total_entries == max_entries && lru_queue_length == max_entries as u64 {
-        Ok(format!(
-            "LRU eviction demo successful! Created {} entries, cache maintained at {} entries, LRU queue length: {}",
-            num_entries, total_entries, lru_queue_length
-        ))
-    } else {
-        Err(format!(
-            "LRU eviction demo failed! Expected {} entries, got {} entries, LRU queue length: {}",
-            max_entries, total_entries, lru_queue_length
-        ))
-    }
-}
-
-// Test function to demonstrate LRU access pattern
-#[ic_cdk::update]
-fn test_lru_access_pattern() -> Result<String, String> {
-    // Clear cache first
-    clear_cache();
-    
-    // Create 3 test entries
-    let test_cids = vec!["cid_1", "cid_2", "cid_3"];
-    
-    for cid in &test_cids {
-        let cache_entry = CacheEntry {
-            cid: cid.to_string(),
-            content_type: "text/plain".to_string(),
-            size: 512,
-            last_accessed_ts: ic_cdk::api::time(),
-            bytes: vec![b'b'; 512],
-        };
-        put_cache_entry(cid.to_string(), cache_entry)?;
-    }
-    
-    // Access cid_2 to move it to the back (most recently used)
-    let _ = get_cache_entry("cid_2");
-    
-    // Get LRU queue to see the order
-    let (_, lru_order) = get_lru_queue_stats();
-    
-    // The expected order should be: cid_1, cid_3, cid_2 (cid_2 was accessed last)
-    if lru_order.len() == 3 {
-        Ok(format!(
-            "LRU access pattern test successful! Queue order: {:?}",
-            lru_order
-        ))
-    } else {
-        Err(format!(
-            "LRU access pattern test failed! Expected 3 items, got {}",
-            lru_order.len()
-        ))
-    }
-}
-
-// Test function to demonstrate LRU touch functionality
-#[ic_cdk::update]
-fn test_lru_touch_debug(cid: String) -> Result<String, String> {
-    // First, get the current LRU queue order
-    let (_, initial_order) = get_lru_queue_stats();
-    
-    // Find the position of the CID in the initial order
-    let initial_pos = initial_order.iter().position(|x| x == &cid);
-    
-    if initial_pos.is_none() {
-        return Err(format!("CID {} not found in LRU queue", cid));
-    }
-    
-    let initial_pos = initial_pos.unwrap();
-    
-    // Now access the cache entry to trigger LRU touch
-    if let Some(_entry) = get_cache_entry(&cid) {
-        // Get the new LRU queue order
-        let (_, new_order) = get_lru_queue_stats();
-        
-        // Find the new position
-        let new_pos = new_order.iter().position(|x| x == &cid);
-        
-        if let Some(new_pos) = new_pos {
-            if new_pos == new_order.len() - 1 {
-                Ok(format!(
-                    "LRU touch successful! CID {} moved from position {} to position {} (back of queue)",
-                    cid, initial_pos, new_pos
-                ))
-            } else {
-                Ok(format!(
-                    "LRU touch partial - CID {} moved from position {} to position {} (expected: {})",
-                    cid, initial_pos, new_pos, new_order.len() - 1
-                ))
-            }
-        } else {
-            Err(format!("CID {} disappeared from LRU queue after touch", cid))
-        }
-    } else {
-        Err(format!("Failed to retrieve cache entry for CID {}", cid))
-    }
-}
+// REMOVED: LRU test functions moved to archived_unused/backend-20250828-0804/lib.rs.backup
+// The following LRU test functions have been removed as they are not used by the frontend:
+// - test_lru_eviction_demo (lines 1184-1226)
+// - test_lru_access_pattern (lines 1227-1266)
+// - test_lru_touch_debug (lines 1267-1320)
 
 // Test function to verify HTTP outcall setup and basic connectivity
 #[ic_cdk::update]
@@ -1458,163 +1209,11 @@ async fn test_http_outcall_setup() -> Result<String, String> {
     }
 }
 
-// Test function to verify HTTP outcalls are working
-#[ic_cdk::update]
-async fn test_real_http_outcalls() -> Result<String, String> {
-    ic_cdk::print("Testing real HTTP outcalls with reliable endpoints...");
-    
-    let mut results = Vec::new();
-    
-    // Test 1: Test basic HTTP connectivity (reliable endpoint)
-    let test_httpbin_url = get_env_var("TEST_HTTPBIN_URL", "https://httpbin.org");
-    let request1 = CanisterHttpRequestArgument {
-        url: format!("{}/get", test_httpbin_url),
-        method: HttpMethod::GET,
-        headers: vec![
-            HttpHeader { name: "User-Agent".to_string(), value: "ICP-CDN-Test/1.0".to_string() },
-        ],
-        body: Some(vec![]),
-        max_response_bytes: Some(1024),
-        transform: None,
-    };
-    
-    let cycles = 10_000_000_000u128;
-    
-    match ic_cdk::api::call::call_with_payment128::<(CanisterHttpRequestArgument,), (HttpResponse,)>(
-        Principal::management_canister(),
-        "http_request",
-        (request1,),
-        cycles,
-    ).await {
-        Ok((response,)) => {
-            if response.status == 200u128 {
-                results.push(format!("✅ Basic HTTP connectivity: {} bytes received", response.body.len()));
-            } else {
-                results.push(format!("⚠️ Basic HTTP connectivity: Status {}", response.status));
-            }
-        }
-        Err((code, message)) => {
-            results.push(format!("❌ Basic HTTP connectivity failed: {:?} - {}", code, message));
-        }
-    }
-    
-    // Test 2: Test JSON API endpoint
-    let test_jsonplaceholder_url = get_env_var("TEST_JSONPLACEHOLDER_URL", "https://jsonplaceholder.typicode.com");
-    let request2 = CanisterHttpRequestArgument {
-        url: format!("{}/posts/1", test_jsonplaceholder_url),
-        method: HttpMethod::GET,
-        headers: vec![
-            HttpHeader { name: "User-Agent".to_string(), value: "ICP-CDN-Test/1.0".to_string() },
-        ],
-        body: Some(vec![]),
-        max_response_bytes: Some(1024),
-        transform: None,
-    };
-    
-    match ic_cdk::api::call::call_with_payment128::<(CanisterHttpRequestArgument,), (HttpResponse,)>(
-        Principal::management_canister(),
-        "http_request",
-        (request2,),
-        cycles,
-    ).await {
-        Ok((response,)) => {
-            if response.status == 200u128 {
-                results.push(format!("✅ JSON API test: {} bytes received", response.body.len()));
-            } else {
-                results.push(format!("⚠️ JSON API test: Status {}", response.status));
-            }
-        }
-        Err((code, message)) => {
-            results.push(format!("❌ JSON API test failed: {:?} - {}", code, message));
-        }
-    }
-    
-    // Test 3: Test POST request
-    let request3 = CanisterHttpRequestArgument {
-        url: format!("{}/post", test_httpbin_url),
-        method: HttpMethod::POST,
-        headers: vec![
-            HttpHeader { name: "User-Agent".to_string(), value: "ICP-CDN-Test/1.0".to_string() },
-            HttpHeader { name: "Content-Type".to_string(), value: "application/json".to_string() },
-        ],
-        body: Some(r#"{"test": "data", "message": "Hello from ICP dCDN!"}"#.as_bytes().to_vec()),
-        max_response_bytes: Some(1024),
-        transform: None,
-    };
-    
-    match ic_cdk::api::call::call_with_payment128::<(CanisterHttpRequestArgument,), (HttpResponse,)>(
-        Principal::management_canister(),
-        "http_request",
-        (request3,),
-        cycles,
-    ).await {
-        Ok((response,)) => {
-            if response.status == 200u128 {
-                results.push(format!("✅ POST request test: {} bytes received", response.body.len()));
-            } else {
-                results.push(format!("⚠️ POST request test: Status {}", response.status));
-            }
-        }
-        Err((code, message)) => {
-            results.push(format!("❌ POST request test failed: {:?} - {}", code, message));
-        }
-    }
-    
-    // Count successful tests
-    let successful_tests = results.iter().filter(|r| r.starts_with("✅")).count();
-    let total_tests = results.len();
-    
-    if successful_tests >= 2 {
-        Ok(format!(
-            "✅ HTTP outcalls working well!\n\
-            - {}/{} tests successful\n\
-            - All core HTTP functionality verified\n\
-            - Ready for production use\n\n\
-            Test Results:\n{}",
-            successful_tests, total_tests, results.join("\n")
-        ))
-    } else {
-        Ok(format!(
-            "⚠️ HTTP outcalls partially working\n\
-            - {}/{} tests successful\n\
-            - Some connectivity issues detected\n\n\
-            Test Results:\n{}",
-            successful_tests, total_tests, results.join("\n")
-        ))
-    }
-}
+// REMOVED: test_real_http_outcalls function moved to archived_unused/backend-20250828-0804/lib.rs.backup
+// This large HTTP test function (lines 1251-1360) has been removed as it is not used by the frontend
 
-// Helper function to create a test image
-fn create_test_image(cid: String, width: u32, height: u32) -> Result<String, String> {
-    // Create a simple test image (this is just a placeholder for testing)
-    // In a real implementation, this would create an actual image
-    let image_size = width * height * 3; // RGB bytes
-    Ok(format!("Test image created for CID: {} ({}x{} pixels, {} bytes)", cid, width, height, image_size))
-}
-
-// Test function to demonstrate the complete flow with real HTTP outcalls
-#[ic_cdk::update]
-async fn test_complete_real_flow() -> Result<String, String> {
-    // Step 1: Create a test image and upload it
-    let test_cid = "test_real_flow_image";
-    let test_content = create_test_image(test_cid.to_string(), 100, 100)?;
-    
-    // Step 2: Upload content with real pinning
-    let upload_result = upload_content(
-        test_cid.to_string(),
-        "image/png".to_string(),
-        vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10] // Test content
-    ).await?;
-    
-    Ok(format!(
-        "✅ Complete real flow test successful!\n\
-        - Test image created: {}\n\
-        - Content uploaded and pinned: {}\n\
-        - All HTTP outcalls and cache operations working",
-        test_content,
-        upload_result
-    ))
-}
+// REMOVED: create_test_image helper function and test_complete_real_flow function moved to archived_unused/backend-20250828-0804/lib.rs.backup
+// These functions have been removed as they are not used by the frontend
 
 // ===== ENHANCED CYCLES BILLING AND CACHE MANAGEMENT FUNCTIONS =====
 
@@ -1776,280 +1375,17 @@ fn clear_user_cache() -> Result<String, String> {
     })
 }
 
-// Reset performance metrics
-#[ic_cdk::update]
-fn reset_performance_metrics() -> Result<String, String> {
-    reset_metrics();
-    Ok("✅ Performance metrics reset successfully".to_string())
-}
+// REMOVED: reset_performance_metrics function moved to archived_unused/backend-20250828-0804/lib.rs.backup
+// This function has been removed as it is not called by the frontend
 
-// ===== COMPREHENSIVE HTTP CANISTER CALL TEST FUNCTION =====
+// REMOVED: test_http_canister_calls_to_pinata function moved to archived_unused/backend-20250828-0804/lib.rs.backup
+// This large HTTP test function (lines 1420-1560) has been removed as it is not used by the frontend
 
-// Test function specifically for testing HTTP canister calls to Pinata
-// This simulates the complete flow: upload to cache + HTTP call to Pinata
-#[ic_cdk::update]
-async fn test_http_canister_calls_to_pinata() -> Result<String, String> {
-    ic_cdk::print("🚀 Starting comprehensive HTTP canister call test to Pinata...");
-    
-    // Step 1: Create test file content
-    let test_filename = format!("test_file_{}", ic_cdk::api::time());
-    let test_content = format!(
-        "This is a test file created at timestamp: {}\n\
-        File: {}\n\
-        Content: Testing HTTP canister calls to Pinata from ICP CDN\n\
-        This file should be uploaded to both cache and Pinata IPFS.",
-        ic_cdk::api::time(),
-        test_filename
-    );
-    let test_bytes = test_content.as_bytes();
-    
-    ic_cdk::print(format!("📝 Created test file: {} ({} bytes)", test_filename, test_bytes.len()));
-    
-    // Step 2: Test direct Pinata upload via HTTP canister call
-    ic_cdk::print("🔄 Testing direct HTTP canister call to Pinata...");
-    
-    match upload_to_pinata(test_bytes, &test_filename, "text/plain", true).await {
-        Ok(ipfs_hash) => {
-            ic_cdk::print(format!("✅ Successfully uploaded to Pinata via HTTP canister call! IPFS Hash: {}", ipfs_hash));
-            
-            // Step 3: Test fetching the uploaded content from IPFS
-            ic_cdk::print("🔄 Testing fetch from IPFS via HTTP canister call...");
-            
-            match fetch_from_ipfs_internal(&ipfs_hash).await {
-                Ok(fetched_content) => {
-                    ic_cdk::print(format!("✅ Successfully fetched {} bytes from IPFS", fetched_content.len()));
-                    
-                    // Step 4: Verify content matches
-                    if fetched_content == test_bytes {
-                        ic_cdk::print("✅ Content verification successful - uploaded and fetched content match!");
-                        
-                        // Step 5: Test the complete flow with cache integration
-                        ic_cdk::print("🔄 Testing complete flow: Cache + Pinata integration...");
-                        
-                        let test_cid = format!("test_cid_{}", ic_cdk::api::time());
-                        
-                        // Simulate the upload_content function flow
-                        match upload_content(
-                            test_cid.clone(),
-                            "text/plain".to_string(),
-                            test_bytes.to_vec()
-                        ).await {
-                            Ok(upload_result) => {
-                                ic_cdk::print(format!("✅ Complete flow successful! Upload result: {}", upload_result));
-                                
-                                // Step 6: Test cache retrieval
-                                match get_cache_entry(&test_cid) {
-                                    Some(cached_content) => {
-                                        ic_cdk::print(format!("✅ Cache retrieval successful! Retrieved {} bytes", cached_content.bytes.len()));
-                                        
-                                        Ok(format!(
-                                            "🎉 COMPREHENSIVE HTTP CANISTER CALL TEST SUCCESSFUL!\n\n\
-                                            📊 Test Results:\n\
-                                            - ✅ Direct Pinata upload via HTTP canister call\n\
-                                            - ✅ IPFS hash: {}\n\
-                                            - ✅ Content fetch from IPFS via HTTP canister call\n\
-                                            - ✅ Content verification (uploaded = fetched)\n\
-                                            - ✅ Complete flow: Cache + Pinata integration\n\
-                                            - ✅ Cache storage and retrieval\n\n\
-                                            🔧 Technical Details:\n\
-                                            - Test file: {} ({} bytes)\n\
-                                            - Cache CID: {}\n\
-                                            - HTTP outcalls: Working perfectly\n\
-                                            - Pinata integration: Fully functional\n\n\
-                                            🚀 Your HTTP canister calls are working correctly!",
-                                            ipfs_hash,
-                                            test_filename,
-                                            test_bytes.len(),
-                                            test_cid
-                                        ))
-                                    }
-                                    None => {
-                                        Ok(format!(
-                                            "⚠️ HTTP calls working but cache retrieval failed\n\
-                                            - Pinata upload: ✅ Success\n\
-                                            - IPFS fetch: ✅ Success\n\
-                                            - Cache retrieval: ❌ Cache entry not found\n\
-                                            - HTTP canister calls: ✅ Working"
-                                        ))
-                                    }
-                                }
-                            }
-                            Err(upload_error) => {
-                                Ok(format!(
-                                    "⚠️ Direct HTTP calls working but complete flow failed\n\
-                                    - Direct Pinata upload: ✅ Success\n\
-                                    - IPFS fetch: ✅ Success\n\
-                                    - Complete flow: ❌ {}\n\
-                                    - HTTP canister calls: ✅ Working",
-                                    upload_error
-                                ))
-                            }
-                        }
-                    } else {
-                        Ok(format!(
-                            "⚠️ HTTP calls working but content verification failed\n\
-                            - Pinata upload: ✅ Success\n\
-                            - IPFS fetch: ✅ Success\n\
-                            - Content verification: ❌ Mismatch\n\
-                            - HTTP canister calls: ✅ Working"
-                        ))
-                    }
-                }
-                Err(fetch_error) => {
-                    Ok(format!(
-                        "⚠️ Pinata upload successful but IPFS fetch failed\n\
-                        - Pinata upload: ✅ Success\n\
-                        - IPFS fetch: ❌ {}\n\
-                        - HTTP canister calls: Partially working",
-                        fetch_error
-                    ))
-                }
-            }
-        }
-        Err(upload_error) => {
-            Err(format!(
-                "❌ HTTP canister call to Pinata failed\n\
-                - Pinata upload: ❌ {}\n\
-                - HTTP canister calls: Not working\n\
-                - Please check:\n\
-                  1. PINATA_JWT configuration\n\
-                  2. HTTP outcall permissions\n\
-                  3. Network connectivity",
-                upload_error
-            ))
-        }
-    }
-}
+// REMOVED: test_basic_http_connectivity function moved to archived_unused/backend-20250828-0804/lib.rs.backup
+// This HTTP test function has been removed as it is not used by the frontend
 
-// Test function for simple HTTP connectivity check
-#[ic_cdk::update]
-async fn test_basic_http_connectivity() -> Result<String, String> {
-    ic_cdk::print("🔍 Testing basic HTTP connectivity...");
-    
-    // Test with a simple public API
-    let test_httpbin_url = get_env_var("TEST_HTTPBIN_URL", "https://httpbin.org");
-    let url = format!("{}/get", test_httpbin_url);
-    
-    let request = CanisterHttpRequestArgument {
-        url: url.to_string(),
-        method: HttpMethod::GET,
-        headers: vec![
-            HttpHeader { name: "User-Agent".to_string(), value: "ICP-CDN-Test/1.0".to_string() },
-        ],
-        body: Some(vec![]),
-        max_response_bytes: Some(1024), // 1KB max response
-        transform: None,
-    };
-    
-    let cycles = 10_000_000_000u128; // 10B cycles
-    
-    match ic_cdk::api::call::call_with_payment128::<(CanisterHttpRequestArgument,), (HttpResponse,)>(
-        Principal::management_canister(),
-        "http_request",
-        (request,),
-        cycles,
-    ).await {
-        Ok((response,)) => {
-            if response.status == Nat::from(200u64) {
-                Ok(format!(
-                    "✅ Basic HTTP connectivity test successful!\n\
-                    - Status: {}\n\
-                    - Response size: {} bytes\n\
-                    - HTTP outcalls are working",
-                    response.status,
-                    response.body.len()
-                ))
-            } else {
-                Ok(format!(
-                    "⚠️ HTTP connectivity test returned non-200 status\n\
-                    - Status: {}\n\
-                    - Response size: {} bytes\n\
-                    - HTTP outcalls are working but target returned error",
-                    response.status,
-                    response.body.len()
-                ))
-            }
-        }
-        Err((code, message)) => {
-            Err(format!(
-                "❌ Basic HTTP connectivity test failed\n\
-                - Error code: {:?}\n\
-                - Error message: {}\n\
-                - HTTP outcalls are not working",
-                code, message
-            ))
-        }
-    }
-}
-
-// Test function for debugging HTTP outcall issues
-#[ic_cdk::update]
-async fn test_http_outcall_debug() -> Result<String, String> {
-    ic_cdk::print("🔍 Testing HTTP outcall debugging...");
-    
-    // Test multiple endpoints to identify the issue
-    let test_httpbin_url = get_env_var("TEST_HTTPBIN_URL", "https://httpbin.org");
-    let test_ipify_url = get_env_var("TEST_API_IPIFY_URL", "https://api.ipify.org");
-    let test_jsonplaceholder_url = get_env_var("TEST_JSONPLACEHOLDER_URL", "https://jsonplaceholder.typicode.com");
-    
-    let test_urls = vec![
-        format!("{}/get", test_httpbin_url),
-        format!("{}?format=json", test_ipify_url),
-        format!("{}/posts/1", test_jsonplaceholder_url)
-    ];
-    
-    let mut results = Vec::new();
-    
-    for (i, url) in test_urls.iter().enumerate() {
-        ic_cdk::print(format!("Testing URL {}: {}", i + 1, url));
-        
-        let request = CanisterHttpRequestArgument {
-            url: url.to_string(),
-            method: HttpMethod::GET,
-            headers: vec![
-                HttpHeader { name: "User-Agent".to_string(), value: "ICP-CDN-Test/1.0".to_string() },
-            ],
-            body: Some(vec![]),
-            max_response_bytes: Some(1024),
-            transform: None,
-        };
-        
-        let cycles = 10_000_000_000u128;
-        
-        match ic_cdk::api::call::call_with_payment128::<(CanisterHttpRequestArgument,), (HttpResponse,)>(
-            Principal::management_canister(),
-            "http_request",
-            (request,),
-            cycles,
-        ).await {
-            Ok((response,)) => {
-                let status = response.status.to_string();
-                let body_size = response.body.len();
-                let body_preview = if response.body.len() > 50 {
-                    format!("{}...", String::from_utf8_lossy(&response.body[..50]))
-                } else {
-                    String::from_utf8_lossy(&response.body).to_string()
-                };
-                
-                results.push(format!(
-                    "URL {}: ✅ Status {} - {} bytes - Preview: {}",
-                    i + 1, status, body_size, body_preview
-                ));
-            }
-            Err((code, message)) => {
-                results.push(format!(
-                    "URL {}: ❌ Error {:?} - {}",
-                    i + 1, code, message
-                ));
-            }
-        }
-    }
-    
-    Ok(format!(
-        "🔍 HTTP Outcall Debug Results:\n\n{}",
-        results.join("\n")
-    ))
-}
+// REMOVED: test_http_outcall_debug function moved to archived_unused/backend-20250828-0804/lib.rs.backup
+// This HTTP test function has been removed as it is not used by the frontend
 
 // Test function for Pinata API without file upload (just API connectivity)
 #[ic_cdk::update]
@@ -2166,323 +1502,17 @@ async fn test_simple_pinata_upload() -> Result<String, String> {
     }
 }
 
-// Test function to verify the complete upload flow with cache
-#[ic_cdk::update]
-async fn test_complete_upload_flow() -> Result<String, String> {
-    ic_cdk::print("🚀 Testing complete upload flow: Cache + Pinata...");
-    
-    // Step 1: Create test content
-    let test_content = format!(
-        "Complete flow test at timestamp: {}\n\
-        This file tests the complete upload flow:\n\
-        1. Upload to cache\n\
-        2. Upload to Pinata via HTTP canister call\n\
-        3. Verify both are working",
-        ic_cdk::api::time()
-    );
-    let test_bytes = test_content.as_bytes();
-    let test_cid = format!("complete_flow_test_{}", ic_cdk::api::time());
-    
-    ic_cdk::print(format!("📝 Created test content: {} bytes, CID: {}", test_bytes.len(), test_cid));
-    
-    // Step 2: Test the upload_content function (which handles both cache and Pinata)
-    match upload_content(
-        test_cid.clone(),
-        "text/plain".to_string(),
-        test_bytes.to_vec()
-    ).await {
-        Ok(upload_result) => {
-            ic_cdk::print(format!("✅ Complete flow upload successful! Result: {}", upload_result));
-            
-            // Step 3: Verify cache storage
-            match get_cache_entry(&test_cid) {
-                Some(cache_entry) => {
-                    ic_cdk::print(format!("✅ Cache verification successful! Retrieved {} bytes", cache_entry.bytes.len()));
-                    
-                    Ok(format!(
-                        "🎉 COMPLETE UPLOAD FLOW TEST SUCCESSFUL!\n\n\
-                        📊 Test Results:\n\
-                        - ✅ Content uploaded to cache\n\
-                        - ✅ Content uploaded to Pinata via HTTP canister call\n\
-                        - ✅ Cache verification successful\n\
-                        - ✅ HTTP canister calls working perfectly\n\n\
-                        🔧 Technical Details:\n\
-                        - Test CID: {}\n\
-                        - Content size: {} bytes\n\
-                        - Cache entry size: {} bytes\n\
-                        - Upload result: {}\n\n\
-                        🚀 Your HTTP canister calls to Pinata are fully functional!\n\
-                        The complete flow (cache + Pinata) is working as expected.",
-                        test_cid,
-                        test_bytes.len(),
-                        cache_entry.bytes.len(),
-                        upload_result
-                    ))
-                }
-                None => {
-                    Ok(format!(
-                        "⚠️ Upload successful but cache verification failed\n\
-                        - Upload result: {}\n\
-                        - Cache entry: Not found\n\
-                        - HTTP canister calls: ✅ Working\n\
-                        - Cache integration: ❌ Issue detected",
-                        upload_result
-                    ))
-                }
-            }
-        }
-        Err(upload_error) => {
-            Err(format!(
-                "❌ Complete upload flow test failed\n\
-                - Error: {}\n\
-                - Test CID: {}\n\
-                - Content size: {} bytes\n\n\
-                🔧 This indicates an issue with the upload_content function\n\
-                or the integration between cache and Pinata upload.",
-                upload_error,
-                test_cid,
-                test_bytes.len()
-            ))
-        }
-    }
-}
+// REMOVED: test_complete_upload_flow function moved to archived_unused/backend-20250828-0804/lib.rs.backup
+// This HTTP test function has been removed as it is not used by the frontend
 
-// Test function to verify HTTP outcalls work with IPFS gateways
-#[ic_cdk::update]
-async fn test_ipfs_gateway_http_calls() -> Result<String, String> {
-    ic_cdk::print("🔍 Testing HTTP outcalls to IPFS gateways...");
-    
-    // Test with a known IPFS CID (IPFS logo)
-    let test_cid = "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG";
-    let pinata_gateway = format!("https://{}/ipfs/", get_env_var("VITE_PINATA_GATEWAY", "gateway.pinata.cloud"));
-    let ipfs_gateway_default = get_env_var("IPFS_GATEWAY", "https://cloudflare-ipfs.com");
-    let ipfs_gateway_default_formatted = format!("{}/ipfs/", ipfs_gateway_default);
-    let ipfs_gateways = vec![
-        "https://ipfs.io/ipfs/",
-        &pinata_gateway,
-        &ipfs_gateway_default_formatted
-    ];
-    
-    let mut results = Vec::new();
-    
-    for (i, gateway) in ipfs_gateways.iter().enumerate() {
-        let url = format!("{}{}", gateway, test_cid);
-        ic_cdk::print(format!("Testing IPFS gateway {}: {}", i + 1, url));
-        
-        let request = CanisterHttpRequestArgument {
-            url: url.to_string(),
-            method: HttpMethod::GET,
-            headers: vec![
-                HttpHeader { name: "User-Agent".to_string(), value: "ICP-CDN-Test/1.0".to_string() },
-            ],
-            body: Some(vec![]),
-            max_response_bytes: Some(1024), // 1KB max response
-            transform: None,
-        };
-        
-        let cycles = 10_000_000_000u128;
-        
-        match ic_cdk::api::call::call_with_payment128::<(CanisterHttpRequestArgument,), (HttpResponse,)>(
-            Principal::management_canister(),
-            "http_request",
-            (request,),
-            cycles,
-        ).await {
-            Ok((response,)) => {
-                let status = response.status.to_string();
-                let body_size = response.body.len();
-                results.push(format!(
-                    "Gateway {}: ✅ Status {} - {} bytes",
-                    i + 1, status, body_size
-                ));
-            }
-            Err((code, message)) => {
-                results.push(format!(
-                    "Gateway {}: ❌ Error {:?} - {}",
-                    i + 1, code, message
-                ));
-            }
-        }
-    }
-    
-    Ok(format!(
-        "🔍 IPFS Gateway HTTP Call Test Results:\n\n{}\n\n📊 Summary:\n- HTTP outcalls to IPFS gateways: ✅ Working\n- Pinata API: ❌ JWT token issue detected\n- General HTTP connectivity: ✅ Working\n\n🔧 Next Steps:\n1. HTTP canister calls are functional\n2. Need to fix Pinata JWT token\n3. Cache integration is ready for testing",
-        results.join("\n")
-    ))
-}
+// REMOVED: test_ipfs_gateway_http_calls function moved to archived_unused/backend-20250828-0804/lib.rs.backup
+// This HTTP test function has been removed as it is not used by the frontend
 
-// Test function with custom JWT token
-#[ic_cdk::update]
-async fn test_pinata_with_custom_jwt() -> Result<String, String> {
-    ic_cdk::print("🔍 Testing Pinata upload with custom JWT token...");
-    
-    // Use the JWT token from environment
-    let custom_jwt = get_pinata_jwt();
-    
-    // Create test content
-    let test_content = b"Testing with custom JWT token from environment";
-    let test_filename = "custom_jwt_test.txt";
-    
-    ic_cdk::print(format!("📝 Testing upload with custom JWT: {} ({} bytes)", test_filename, test_content.len()));
-    
-    // Test Pinata API connectivity with custom JWT
-    let pinata_api_url = get_env_var("PINATA_API_URL", "https://api.pinata.cloud");
-    let url = format!("{}/data/testAuthentication", pinata_api_url);
-    
-    let request = CanisterHttpRequestArgument {
-        url: url.to_string(),
-        method: HttpMethod::GET,
-        headers: vec![
-            HttpHeader { name: "Authorization".to_string(), value: format!("Bearer {}", custom_jwt) },
-            HttpHeader { name: "User-Agent".to_string(), value: "ICP-CDN-Test/1.0".to_string() },
-        ],
-        body: Some(vec![]),
-        max_response_bytes: Some(1024),
-        transform: None,
-    };
-    
-    let cycles = 10_000_000_000u128;
-    
-    match ic_cdk::api::call::call_with_payment128::<(CanisterHttpRequestArgument,), (HttpResponse,)>(
-        Principal::management_canister(),
-        "http_request",
-        (request,),
-        cycles,
-    ).await {
-        Ok((response,)) => {
-            let response_body = String::from_utf8_lossy(&response.body);
-            ic_cdk::print(format!("Custom JWT Pinata API response: Status {} - Body: {}", response.status, response_body));
-            
-            if response.status == Nat::from(200u64) {
-                Ok(format!(
-                    "✅ Custom JWT Pinata API test successful!\n\
-                    - Status: {}\n\
-                    - Response: {}\n\
-                    - Custom JWT token is valid and working\n\n\
-                    🚀 Now testing file upload with custom JWT...",
-                    response.status,
-                    response_body
-                ))
-            } else {
-                Ok(format!(
-                    "⚠️ Custom JWT Pinata API returned non-200 status\n\
-                    - Status: {}\n\
-                    - Response: {}\n\
-                    - Custom JWT token might still have issues",
-                    response.status,
-                    response_body
-                ))
-            }
-        }
-        Err((code, message)) => {
-            Err(format!(
-                "❌ Custom JWT Pinata API test failed\n\
-                - Error code: {:?}\n\
-                - Error message: {}\n\
-                - Custom JWT token is not working",
-                code, message
-            ))
-        }
-    }
-}
+// REMOVED: test_pinata_with_custom_jwt function moved to archived_unused/backend-20250828-0804/lib.rs.backup
+// This HTTP test function has been removed as it is not used by the frontend
 
-// Comprehensive test summary function
-#[ic_cdk::update]
-async fn test_http_canister_calls_summary() -> Result<String, String> {
-    ic_cdk::print("📋 Running comprehensive HTTP canister calls test summary...");
-    
-    let mut summary = Vec::new();
-    
-    // Test 1: Basic HTTP connectivity
-    ic_cdk::print("Testing basic HTTP connectivity...");
-    match test_basic_http_connectivity().await {
-        Ok(_result) => {
-            summary.push("✅ Basic HTTP connectivity: Working");
-            ic_cdk::print("Basic HTTP connectivity test passed");
-        }
-        Err(error) => {
-            summary.push("❌ Basic HTTP connectivity: Failed");
-            ic_cdk::print(format!("Basic HTTP connectivity test failed: {}", error));
-        }
-    }
-    
-    // Test 2: IPFS Gateway calls
-    ic_cdk::print("Testing IPFS gateway calls...");
-    match test_ipfs_gateway_http_calls().await {
-        Ok(_result) => {
-            summary.push("✅ IPFS Gateway calls: Working");
-            ic_cdk::print("IPFS Gateway calls test passed");
-        }
-        Err(error) => {
-            summary.push("❌ IPFS Gateway calls: Failed");
-            ic_cdk::print(format!("IPFS Gateway calls test failed: {}", error));
-        }
-    }
-    
-    // Test 3: Cache functionality (without Pinata)
-    ic_cdk::print("Testing cache functionality...");
-    let test_content = b"Cache test content";
-    let test_cid = format!("cache_test_{}", ic_cdk::api::time());
-    
-    // Test cache storage
-    let cache_entry = CacheEntry {
-        cid: test_cid.clone(),
-        content_type: "text/plain".to_string(),
-        size: test_content.len() as u64,
-        last_accessed_ts: ic_cdk::api::time(),
-        bytes: test_content.to_vec(),
-    };
-    
-    CACHE.with(|cache| {
-        let mut cache = cache.borrow_mut();
-        cache.insert(test_cid.clone(), cache_entry);
-    });
-    
-    // Test cache retrieval
-    match get_cache_entry(&test_cid) {
-        Some(_entry) => {
-            summary.push("✅ Cache functionality: Working");
-            ic_cdk::print("Cache functionality test passed");
-        }
-        None => {
-            summary.push("❌ Cache functionality: Failed");
-            ic_cdk::print("Cache functionality test failed");
-        }
-    }
-    
-    // Test 4: Pinata API (expected to fail due to JWT issue)
-    ic_cdk::print("Testing Pinata API...");
-    match test_pinata_api_connectivity().await {
-        Ok(result) => {
-            if result.contains("✅") {
-                summary.push("✅ Pinata API: Working");
-                ic_cdk::print("Pinata API test passed");
-            } else {
-                summary.push("⚠️ Pinata API: JWT token issue");
-                ic_cdk::print("Pinata API test failed due to JWT token issue");
-            }
-        }
-        Err(error) => {
-            summary.push("❌ Pinata API: Failed");
-            ic_cdk::print(format!("Pinata API test failed: {}", error));
-        }
-    }
-    
-    Ok(format!(
-        "🎯 HTTP CANISTER CALLS TEST SUMMARY\n\n\
-        📊 Test Results:\n\
-        {}\n\n\
-        🔧 Analysis:\n\
-        - HTTP outcalls are working correctly\n\
-        - IPFS gateway access is functional\n\
-        - Cache system is operational\n\
-        - Pinata integration needs JWT token fix\n\n\
-        🚀 Status: HTTP canister calls are working!\n\
-        The core functionality is ready. Pinata integration\n\
-        can be fixed by updating the JWT token.",
-        summary.join("\n")
-    ))
-}
+// REMOVED: test_http_canister_calls_summary function moved to archived_unused/backend-20250828-0804/lib.rs.backup
+// This HTTP test function has been removed as it is not used by the frontend
 
 // New function for upload flow: upload file -> cache -> pinata call through canister (HTTP)
 #[ic_cdk::update]
@@ -2916,35 +1946,8 @@ fn canister_get_account_info(caller: Principal) -> UserAccount {
     })
 }
 
-/// Canister-to-canister cycles deposit function
-#[ic_cdk::update]
-async fn canister_deposit_cycles(caller: Principal, cycles_amount: u128) -> UserAccount {
-    if cycles_amount == 0 {
-        return canister_get_account_info(caller);
-    }
-    
-    // Accept the cycles payment from the calling canister
-    let cycles_available = ic_cdk::api::call::msg_cycles_available128();
-    let cycles_accepted = ic_cdk::api::call::msg_cycles_accept128(cycles_amount.min(cycles_available));
-    
-    ic_cdk::print(format!("Canister deposit: Accepted {} cycles from caller {}", cycles_accepted, caller));
-    
-    ACCOUNTS.with(|accounts| {
-        let mut accounts = accounts.borrow_mut();
-        let user_account = accounts.entry(caller).or_insert_with(|| UserAccount {
-            user_principal: caller,
-            cycles_balance: 0,
-            tier: UserTier::Free,
-            cache_usage_bytes: 0,
-            pinata_enabled: false,
-        });
-        
-        // Add the accepted cycles to the canister's balance
-        user_account.cycles_balance = user_account.cycles_balance.saturating_add(cycles_accepted);
-        
-        user_account.clone()
-    })
-}
+// REMOVED: canister_deposit_cycles function moved to archived_unused/backend-20250828-0804/lib.rs.backup
+// This function has been removed as it is not used in frontend
 
 // ===== HELPER FUNCTIONS =====
 

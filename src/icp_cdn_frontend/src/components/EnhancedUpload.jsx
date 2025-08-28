@@ -136,15 +136,14 @@ export default function EnhancedUpload() {
     return parseFloat((bytesNum / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // Generate CID for file (simplified version)
+  // Generate CID for file (matching backend format)
   const generateCID = async (file) => {
-    // In a real implementation, this would use IPFS CID generation
-    // For now, we'll use a simple hash-based approach
+    // Use the same format as the backend (Qm + hex hash)
     const buffer = await file.arrayBuffer();
     const hashBuffer = await crypto.subtle.digest('SHA-256', buffer);
     const hashArray = Array.from(new Uint8Array(hashBuffer));
     const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    return `bafybeih${hashHex.substring(0, 44)}`; // IPFS CID format
+    return `Qm${hashHex.substring(0, 40)}`; // Match backend Qm format
   };
 
   // File viewing functions

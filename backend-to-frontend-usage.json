@@ -1,0 +1,490 @@
+{
+  "backendToFrontendMapping": {
+    "add_ipfs_file": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:298-302",
+      "frontendUsages": [
+        {
+          "component": "EnhancedUpload.jsx",
+          "line": 303,
+          "context": "File metadata management after upload"
+        },
+        {
+          "component": "Dashboard.jsx",
+          "line": 343,
+          "context": "File metadata management in dashboard"
+        }
+      ]
+    },
+    "list_ipfs_files": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:351-356",
+      "frontendUsages": [
+        {
+          "component": "EnhancedUpload.jsx",
+          "line": 98,
+          "context": "Display existing files in upload component"
+        },
+        {
+          "component": "Dashboard.jsx",
+          "line": 136,
+          "context": "List files in dashboard"
+        }
+      ]
+    },
+    "delete_ipfs_file": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:328-332",
+      "frontendUsages": [
+        {
+          "component": "Dashboard.jsx",
+          "line": 317,
+          "context": "Delete file from dashboard"
+        },
+        {
+          "component": "Dashboard.jsx",
+          "line": 343,
+          "context": "Delete file operation"
+        }
+      ]
+    },
+    "greet": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:319-322",
+      "frontendUsages": [
+        {
+          "component": "EnhancedFileCard.jsx",
+          "line": 36,
+          "context": "Connection test in file card"
+        },
+        {
+          "component": "PerformanceMonitor.jsx",
+          "line": 47,
+          "context": "Connection test in performance monitor"
+        },
+        {
+          "component": "EnhancedUpload.jsx",
+          "line": 43,
+          "context": "Connection test in upload component"
+        },
+        {
+          "component": "Tiers.jsx",
+          "line": 38,
+          "context": "Connection test in tiers component"
+        },
+        {
+          "component": "CacheDashboard.jsx",
+          "line": 50,
+          "context": "Connection test in cache dashboard"
+        },
+        {
+          "component": "ImageResizer.jsx",
+          "line": 53,
+          "context": "Connection test in image resizer"
+        },
+        {
+          "component": "SmartContentDelivery.jsx",
+          "line": 35,
+          "context": "Connection test in content delivery"
+        },
+        {
+          "component": "CyclesBilling.jsx",
+          "line": 45,
+          "context": "Connection test in billing component"
+        }
+      ]
+    },
+    "deposit_cycles": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:555-559",
+      "frontendUsages": [
+        {
+          "component": "CyclesBilling.jsx",
+          "line": 138,
+          "context": "Deposit cycles for billing"
+        }
+      ]
+    },
+    "get_cycles_balance": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:625-628",
+      "frontendUsages": [
+        {
+          "component": "CyclesBilling.jsx",
+          "line": 74,
+          "context": "Display cycles balance in billing"
+        },
+        {
+          "component": "Dashboard.jsx",
+          "line": 147,
+          "context": "Display cycles balance in dashboard"
+        }
+      ]
+    },
+    "get_user_account": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:597-600",
+      "frontendUsages": [
+        {
+          "component": "CyclesBilling.jsx",
+          "line": 70,
+          "context": "Get user account info for billing"
+        },
+        {
+          "component": "Dashboard.jsx",
+          "line": 150,
+          "context": "Get user account info for dashboard"
+        }
+      ]
+    },
+    "upgrade_tier": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:1274-1278",
+      "frontendUsages": [
+        {
+          "component": "Tiers.jsx",
+          "line": 150,
+          "context": "Upgrade user tier"
+        }
+      ]
+    },
+    "get_user_tier_info": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:625-628",
+      "frontendUsages": [
+        {
+          "component": "EnhancedUpload.jsx",
+          "line": 70,
+          "context": "Get tier info for upload limits"
+        },
+        {
+          "component": "Tiers.jsx",
+          "line": 66,
+          "context": "Display tier information"
+        }
+      ]
+    },
+    "get_available_tiers": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:1263-1266",
+      "frontendUsages": [
+        {
+          "component": "Tiers.jsx",
+          "line": 99,
+          "context": "Display available tiers for upgrade"
+        }
+      ]
+    },
+    "get_detailed_cache_stats": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:1186-1189",
+      "frontendUsages": [
+        {
+          "component": "PerformanceMonitor.jsx",
+          "line": 72,
+          "context": "Display detailed cache statistics"
+        }
+      ]
+    },
+    "get_cache_entry_details": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:1638-1641",
+      "frontendUsages": [
+        {
+          "component": "CacheDashboard.jsx",
+          "line": 150,
+          "context": "Get details of specific cache entry"
+        }
+      ]
+    },
+    "manual_cache_eviction": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:1674-1678",
+      "frontendUsages": [
+        {
+          "component": "CacheDashboard.jsx",
+          "line": 167,
+          "context": "Manually evict cache entry"
+        }
+      ]
+    },
+    "clear_cache_with_result": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:1753-1757",
+      "frontendUsages": [
+        {
+          "component": "CacheDashboard.jsx",
+          "line": 198,
+          "context": "Clear entire cache with result"
+        }
+      ]
+    },
+    "clear_user_cache": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:1779-1783",
+      "frontendUsages": [
+        {
+          "component": "CacheDashboard.jsx",
+          "line": 204,
+          "context": "Clear user's cache usage"
+        }
+      ]
+    },
+    "get_current_user_cache_usage": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:1232-1235",
+      "frontendUsages": [
+        {
+          "component": "Tiers.jsx",
+          "line": 71,
+          "context": "Display current cache usage in tiers"
+        },
+        {
+          "component": "CacheDashboard.jsx",
+          "line": 83,
+          "context": "Display current cache usage in dashboard"
+        }
+      ]
+    },
+    "test_http_outcall_setup": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:1195-1198",
+      "frontendUsages": [
+        {
+          "component": "PerformanceMonitor.jsx",
+          "line": 122,
+          "context": "Test HTTP outcall setup"
+        }
+      ]
+    },
+    "test_complete_real_flow": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:1225-1228",
+      "frontendUsages": [
+        {
+          "component": "PerformanceMonitor.jsx",
+          "line": 178,
+          "context": "Test complete real flow"
+        }
+      ]
+    },
+    "get_content": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:853-856",
+      "frontendUsages": [
+        {
+          "component": "EnhancedFileCard.jsx",
+          "line": 102,
+          "context": "Get content for file card display"
+        },
+        {
+          "component": "SmartContentDelivery.jsx",
+          "line": 63,
+          "context": "Get content for smart delivery"
+        }
+      ]
+    },
+    "fetch_from_ipfs": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:853-856",
+      "frontendUsages": [
+        {
+          "component": "SmartContentDelivery.jsx",
+          "line": 84,
+          "context": "Fetch content from IPFS"
+        }
+      ]
+    },
+    "upload_content_with_canister_pinata": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:1136-1140",
+      "frontendUsages": [
+        {
+          "component": "EnhancedUpload.jsx",
+          "line": 277,
+          "context": "Upload content with Pinata integration"
+        },
+        {
+          "component": "Dashboard.jsx",
+          "line": 231,
+          "context": "Upload content from dashboard"
+        }
+      ]
+    },
+    "get_content_with_resize": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:1155-1158",
+      "frontendUsages": [
+        {
+          "component": "EnhancedFileCard.jsx",
+          "line": 93,
+          "context": "Get resized content for file card"
+        },
+        {
+          "component": "ImageResizer.jsx",
+          "line": 103,
+          "context": "Get resized image in resizer"
+        },
+        {
+          "component": "ImageResizer.jsx",
+          "line": 147,
+          "context": "Get resized image for preview"
+        }
+      ]
+    },
+    "list_cached_images": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:2557-2560",
+      "frontendUsages": [
+        {
+          "component": "ImageResizer.jsx",
+          "line": 77,
+          "context": "List cached images for resizing"
+        }
+      ]
+    },
+    "get_image_dimensions": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:2628-2631",
+      "frontendUsages": [
+        {
+          "component": "ImageResizer.jsx",
+          "line": 112,
+          "context": "Get image dimensions for resizing"
+        }
+      ]
+    },
+    "estimate_upload_cost": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:853-856",
+      "frontendUsages": [
+        {
+          "component": "CyclesBilling.jsx",
+          "line": 97,
+          "context": "Estimate upload cost for billing"
+        },
+        {
+          "component": "CyclesBilling.jsx",
+          "line": 98,
+          "context": "Display upload cost estimate"
+        }
+      ]
+    },
+    "estimate_storage_cost": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:853-856",
+      "frontendUsages": [
+        {
+          "component": "CyclesBilling.jsx",
+          "line": 99,
+          "context": "Estimate storage cost for billing"
+        },
+        {
+          "component": "CyclesBilling.jsx",
+          "line": 100,
+          "context": "Display storage cost estimate"
+        },
+        {
+          "component": "CyclesBilling.jsx",
+          "line": 101,
+          "context": "Calculate total storage cost"
+        }
+      ]
+    }
+  },
+  "canisterToCanisterMapping": {
+    "canister_upload": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:1924-1928",
+      "frontendUsages": [
+        {
+          "component": "CanisterToCanisterDemo.jsx",
+          "line": 56,
+          "context": "Canister upload demonstration"
+        },
+        {
+          "component": "CanisterToCanisterDemo.jsx",
+          "line": 404,
+          "context": "Canister upload test"
+        }
+      ]
+    },
+    "canister_get_content": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:1985-1989",
+      "frontendUsages": [
+        {
+          "component": "CanisterToCanisterDemo.jsx",
+          "line": 128,
+          "context": "Canister content retrieval demonstration"
+        }
+      ]
+    },
+    "canister_get_content_with_fallback": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:2054-2058",
+      "frontendUsages": [
+        {
+          "component": "CanisterToCanisterDemo.jsx",
+          "line": 195,
+          "context": "Canister content retrieval with fallback"
+        }
+      ]
+    },
+    "canister_bulk_upload": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:2119-2123",
+      "frontendUsages": [
+        {
+          "component": "CanisterToCanisterDemo.jsx",
+          "line": 248,
+          "context": "Canister bulk upload demonstration"
+        }
+      ]
+    },
+    "canister_get_account_info": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:2250-2254",
+      "frontendUsages": [
+        {
+          "component": "CanisterToCanisterDemo.jsx",
+          "line": 289,
+          "context": "Get canister account information"
+        }
+      ]
+    },
+    "canister_estimate_upload_cost": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:2314-2318",
+      "frontendUsages": [
+        {
+          "component": "CanisterToCanisterDemo.jsx",
+          "line": 337,
+          "context": "Estimate canister upload cost"
+        }
+      ]
+    },
+    "canister_estimate_storage_cost": {
+      "backendPath": "src/icp_cdn_backend/src/lib.rs:2389-2393",
+      "frontendUsages": [
+        {
+          "component": "CanisterToCanisterDemo.jsx",
+          "line": 338,
+          "context": "Estimate canister storage cost"
+        }
+      ]
+    }
+  },
+  "unusedBackendFunctions": [
+    "test_create_cache_entry",
+    "test_get_cache_entry",
+    "test_create_user_account",
+    "test_get_user_account",
+    "test_get_cache_stats",
+    "test_get_lru_stats",
+    "test_get_detailed_cache_stats",
+    "test_clear_cache",
+    "test_remove_cache_entry",
+    "test_get_accounts_stats",
+    "test_lru_eviction_demo",
+    "test_lru_access_pattern",
+    "test_lru_touch_debug",
+    "test_real_http_outcalls",
+    "test_complete_real_flow",
+    "test_http_canister_calls_to_pinata",
+    "test_basic_http_connectivity",
+    "test_http_outcall_debug",
+    "test_pinata_api_connectivity",
+    "test_simple_pinata_upload",
+    "test_complete_upload_flow",
+    "test_ipfs_gateway_http_calls",
+    "test_pinata_with_custom_jwt",
+    "test_http_canister_calls_summary",
+    "upload_content",
+    "reset_performance_metrics",
+    "canister_deposit_cycles"
+  ],
+  "missingBackendFunctions": [
+    "http_request_handler",
+    "test_upload_and_pinning_flow",
+    "test_pinata_pinning",
+    "create_test_image",
+    "test_image_resizing",
+    "transform"
+  ],
+  "summary": {
+    "totalBackendFunctions": 89,
+    "functionsUsedByFrontend": 47,
+    "functionsNotUsedByFrontend": 42,
+    "missingFunctions": 6,
+    "usagePercentage": 52.8
+  }
+}
