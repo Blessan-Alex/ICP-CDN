@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# Create a clean .env file with the correct JWT token
+cat > .env << 'EOF'
+# Pinata Configuration
+VITE_PINATA_JWT=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIyZDhiYzBiNC0xNjllLTQzNzQtOTI5Yy05ZmJhNjEwODNmMTciLCJlbWFpbCI6ImtoYXRyaXNha3NoaTMwMDNAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6IjdjN2FjMjY3YTdhMzU2ZWVmN2Y3Iiwic2NvcGVkS2V5U2VjcmV0IjoiODE2ZjMyZjk4NTFjY2Q1YzZmNjhlNjQzMDA2NjZlZGQ4MzkxMTEzY2RkMDhhMjMzNDdkZmMzY2NhMDNlOTU1NCIsImV4cCI6MTc4Mzc4MTcwOH0.Qv8HE9i-HPBOJ2jvtnrlEGnttG6kIEUQ-SaKz4AznwE
+VITE_PINATA_GATEWAY=black-defensive-zebra-94.mypinata.cloud
+PINATA_API_URL=https://api.pinata.cloud
+
+# DFX Configuration
+DFX_REPLICA_HOST=http://127.0.0.1:4943
+DFX_VERSION=0.27.0
+DFX_NETWORK=local
+
+# Canister IDs (using consistent naming)
+CANISTER_ID_BACKEND=uxrrr-q7777-77774-qaaaq-cai
+CANISTER_ID_FRONTEND=u6s2n-gx777-77774-qaaba-cai
+CANISTER_ID_INTERNET_IDENTITY=uzt4z-lp777-77774-qaabq-cai
+
+# Legacy DFX canister variables (for compatibility)
+CANISTER_ID_ICP_CDN_BACKEND=uxrrr-q7777-77774-qaaaq-cai
+CANISTER_ID_ICP_CDN_FRONTEND=u6s2n-gx777-77774-qaaba-cai
+CANISTER_ID_INTERNET_IDENTITY=uzt4z-lp777-77774-qaabq-cai
+CANISTER_ID=u6s2n-gx777-77774-qaaba-cai
+
+# Canister Candid Paths
+CANISTER_CANDID_PATH_ICP_CDN_BACKEND=/home/blaze/b2bfinalproject/icp_cdn/src/icp_cdn_backend/icp_cdn_backend.did
+CANISTER_CANDID_PATH=/home/blaze/b2bfinalproject/icp_cdn/.dfx/local/canisters/icp_cdn_frontend/assetstorage.did
+
+# IPFS Configuration
+IPFS_GATEWAY=https://cloudflare-ipfs.com
+
+# Cache Configuration
+MAX_CACHE_ITEMS=1000
+MAX_CACHE_SIZE_MB=20
+FREE_TIER_CACHE_LIMIT_MB=20
+STARTER_TIER_CACHE_LIMIT_MB=50
+PRO_TIER_CACHE_LIMIT_MB=100
+BUSINESS_TIER_CACHE_LIMIT_MB=500
+
+# Pricing Configuration
+STARTER_UPGRADE_COST_CYCLES=1000000000
+PRO_UPGRADE_COST_CYCLES=5000000000
+BUSINESS_UPGRADE_COST_CYCLES=15000000000
+
+# Test Endpoints (for development only)
+TEST_HTTPBIN_URL=https://httpbin.org
+TEST_JSONPLACEHOLDER_URL=https://jsonplaceholder.typicode.com
+TEST_API_IPIFY_URL=https://api.ipify.org
+
+# Frontend Environment Variables (VITE_ prefix)
+VITE_DFX_REPLICA_HOST=${DFX_REPLICA_HOST}
+VITE_CANISTER_ID_BACKEND=${CANISTER_ID_BACKEND}
+VITE_CANISTER_ID_FRONTEND=${CANISTER_ID_FRONTEND}
+VITE_CANISTER_ID_INTERNET_IDENTITY=${CANISTER_ID_INTERNET_IDENTITY}
+EOF
+
+echo "✅ .env file created with correct JWT token!"
+echo "🔍 Verifying JWT token format..."
+grep "VITE_PINATA_JWT" .env | wc -c
+echo "📝 JWT token length (should be around 1000+ characters):"

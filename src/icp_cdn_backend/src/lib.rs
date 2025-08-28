@@ -58,22 +58,33 @@ pub struct CachedImageInfo {
     pub last_accessed: u64,
 }
 
-// Tier configuration constants
-const FREE_TIER_CACHE_LIMIT: u64 = 20 * 1024 * 1024; // 20MB
-const STARTER_TIER_CACHE_LIMIT: u64 = 50 * 1024 * 1024; // 50MB
-const PRO_TIER_CACHE_LIMIT: u64 = 100 * 1024 * 1024; // 100MB
-const BUSINESS_TIER_CACHE_LIMIT: u64 = 500 * 1024 * 1024; // 500MB
+// Tier configuration functions (environment-based)
+fn get_tier_cache_limits() -> (u64, u64, u64, u64) {
+    (
+        get_env_var("FREE_TIER_CACHE_LIMIT_MB", "20").parse().unwrap_or(20) * 1024 * 1024,
+        get_env_var("STARTER_TIER_CACHE_LIMIT_MB", "50").parse().unwrap_or(50) * 1024 * 1024,
+        get_env_var("PRO_TIER_CACHE_LIMIT_MB", "100").parse().unwrap_or(100) * 1024 * 1024,
+        get_env_var("BUSINESS_TIER_CACHE_LIMIT_MB", "500").parse().unwrap_or(500) * 1024 * 1024,
+    )
+}
 
-// Tier upgrade costs (in cycles)
-const STARTER_UPGRADE_COST: u128 = 1_000_000_000; // 1B cycles ≈ $1
-const PRO_UPGRADE_COST: u128 = 5_000_000_000; // 5B cycles ≈ $5
-const BUSINESS_UPGRADE_COST: u128 = 15_000_000_000; // 15B cycles ≈ $15
+fn get_upgrade_costs() -> (u128, u128, u128) {
+    (
+        get_env_var("STARTER_UPGRADE_COST_CYCLES", "1000000000").parse().unwrap_or(1_000_000_000),
+        get_env_var("PRO_UPGRADE_COST_CYCLES", "5000000000").parse().unwrap_or(5_000_000_000),
+        get_env_var("BUSINESS_UPGRADE_COST_CYCLES", "15000000000").parse().unwrap_or(15_000_000_000),
+    )
+}
 
-// Pinata tier configuration
-const FREE_TIER_PINATA_STORAGE: u64 = 1 * 1024 * 1024 * 1024; // 1GB
-const STARTER_TIER_PINATA_STORAGE: u64 = 100 * 1024 * 1024 * 1024; // 100GB
-const PRO_TIER_PINATA_STORAGE: u64 = 500 * 1024 * 1024 * 1024; // 500GB
-const BUSINESS_TIER_PINATA_STORAGE: u64 = 2 * 1024 * 1024 * 1024 * 1024; // 2TB
+// Pinata tier configuration (environment-based)
+fn get_pinata_storage_limits() -> (u64, u64, u64, u64) {
+    (
+        1 * 1024 * 1024 * 1024, // 1GB - Free tier
+        100 * 1024 * 1024 * 1024, // 100GB - Starter tier
+        500 * 1024 * 1024 * 1024, // 500GB - Pro tier
+        2 * 1024 * 1024 * 1024 * 1024, // 2TB - Business tier
+    )
+}
 
 impl Default for UserAccount {
     fn default() -> Self {
@@ -89,20 +100,22 @@ impl Default for UserAccount {
 
 impl UserAccount {
     fn get_cache_limit(&self) -> u64 {
+        let (free_limit, starter_limit, pro_limit, business_limit) = get_tier_cache_limits();
         match self.tier {
-            UserTier::Free => FREE_TIER_CACHE_LIMIT,
-            UserTier::Starter => STARTER_TIER_CACHE_LIMIT,
-            UserTier::Pro => PRO_TIER_CACHE_LIMIT,
-            UserTier::Business => BUSINESS_TIER_CACHE_LIMIT,
+            UserTier::Free => free_limit,
+            UserTier::Starter => starter_limit,
+            UserTier::Pro => pro_limit,
+            UserTier::Business => business_limit,
         }
     }
 
     fn get_pinata_storage_limit(&self) -> u64 {
+        let (free_storage, starter_storage, pro_storage, business_storage) = get_pinata_storage_limits();
         match self.tier {
-            UserTier::Free => FREE_TIER_PINATA_STORAGE,
-            UserTier::Starter => STARTER_TIER_PINATA_STORAGE,
-            UserTier::Pro => PRO_TIER_PINATA_STORAGE,
-            UserTier::Business => BUSINESS_TIER_PINATA_STORAGE,
+            UserTier::Free => free_storage,
+            UserTier::Starter => starter_storage,
+            UserTier::Pro => pro_storage,
+            UserTier::Business => business_storage,
         }
     }
 
@@ -119,13 +132,14 @@ impl UserAccount {
     }
 
     fn get_upgrade_cost(&self, target_tier: &UserTier) -> Option<u128> {
+        let (starter_cost, pro_cost, business_cost) = get_upgrade_costs();
         match (&self.tier, target_tier) {
-            (UserTier::Free, UserTier::Starter) => Some(STARTER_UPGRADE_COST),
-            (UserTier::Free, UserTier::Pro) => Some(PRO_UPGRADE_COST),
-            (UserTier::Free, UserTier::Business) => Some(BUSINESS_UPGRADE_COST),
-            (UserTier::Starter, UserTier::Pro) => Some(PRO_UPGRADE_COST - STARTER_UPGRADE_COST),
-            (UserTier::Starter, UserTier::Business) => Some(BUSINESS_UPGRADE_COST - STARTER_UPGRADE_COST),
-            (UserTier::Pro, UserTier::Business) => Some(BUSINESS_UPGRADE_COST - PRO_UPGRADE_COST),
+            (UserTier::Free, UserTier::Starter) => Some(starter_cost),
+            (UserTier::Free, UserTier::Pro) => Some(pro_cost),
+            (UserTier::Free, UserTier::Business) => Some(business_cost),
+            (UserTier::Starter, UserTier::Pro) => Some(pro_cost - starter_cost),
+            (UserTier::Starter, UserTier::Business) => Some(business_cost - starter_cost),
+            (UserTier::Pro, UserTier::Business) => Some(business_cost - pro_cost),
             _ => None,
         }
     }
@@ -176,9 +190,13 @@ struct PerformanceMetrics {
     last_reset_time: u64,
 }
 
-// Cache configuration constants
-const MAX_CACHE_ITEMS: usize = 1000; // Maximum number of items in cache
-const MAX_CACHE_SIZE_BYTES: u64 = 20 * 1024 * 1024; // 20MB cache limit (global)
+// Cache configuration functions (environment-based)
+fn get_cache_config() -> (usize, u64) {
+    (
+        get_env_var("MAX_CACHE_ITEMS", "1000").parse().unwrap_or(1000),
+        get_env_var("MAX_CACHE_SIZE_MB", "20").parse().unwrap_or(20) * 1024 * 1024,
+    )
+}
 
 // Configuration function to get environment variables
 fn get_env_var(key: &str, default: &str) -> String {
@@ -186,21 +204,44 @@ fn get_env_var(key: &str, default: &str) -> String {
     // This is a placeholder for environment variable access
     // In a real implementation, this would be configured through canister settings
     match key {
-        "DFX_REPLICA_HOST" | "VITE_DFX_REPLICA_HOST" => "http://127.0.0.1:4943".to_string(),
-        "CANISTER_ID_ICP_CDN_BACKEND" | "VITE_CANISTER_ID_BACKEND" => "uxrrr-q7777-77774-qaaaq-cai".to_string(),
-        "CANISTER_ID_ICP_CDN_FRONTEND" | "VITE_CANISTER_ID_FRONTEND" => "u6s2n-gx777-77774-qaaba-cai".to_string(),
-        "CANISTER_ID_INTERNET_IDENTITY" | "VITE_CANISTER_ID_INTERNET_IDENTITY" => "uzt4z-lp777-77774-qaabq-cai".to_string(),
-        "VITE_PINATA_JWT" | "PINATA_JWT" => "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIyZDhiYzBiNC0xNjllLTQzNzQtOTI5Yy05ZmJhNjEwODNmMTciLCJlbWFpbCI6ImtoYXRyaXNha3NoaTMwMDNAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6IjdjN2FjMjY3YTdhMzU2ZWVmN2Y3Iiwic2NvcGVkS2V5U2VjcmV0IjoiODE2ZjMyZjk4NTFjY2Q1YzZmNjhlNjQzMDA2NjZlZGQ4MzkxMTEzY2RkMDhhMjMzNDdkZmMzY2NhMDNlOTU1NCIsImV4cCI6MTc4Mzc4MTcwOH0.Qv8HE9i-HPBOJ2jvtnrlEGnttG6kIEUQ-SaKz4AznwE".to_string(),
-        "VITE_PINATA_GATEWAY" | "PINATA_GATEWAY" => "gateway.pinata.cloud".to_string(),
+        "DFX_REPLICA_HOST" | "VITE_DFX_REPLICA_HOST" => get_env_var_impl("DFX_REPLICA_HOST", "http://127.0.0.1:4943"),
+        "CANISTER_ID_ICP_CDN_BACKEND" | "VITE_CANISTER_ID_BACKEND" => get_env_var_impl("CANISTER_ID_BACKEND", ""),
+        "CANISTER_ID_ICP_CDN_FRONTEND" | "VITE_CANISTER_ID_FRONTEND" => get_env_var_impl("CANISTER_ID_FRONTEND", ""),
+        "CANISTER_ID_INTERNET_IDENTITY" | "VITE_CANISTER_ID_INTERNET_IDENTITY" => get_env_var_impl("CANISTER_ID_INTERNET_IDENTITY", ""),
+        "VITE_PINATA_JWT" | "PINATA_JWT" => get_env_var_impl("PINATA_JWT", ""),
+        "VITE_PINATA_GATEWAY" | "PINATA_GATEWAY" => get_env_var_impl("PINATA_GATEWAY", "gateway.pinata.cloud"),
+        "IPFS_GATEWAY" => get_env_var_impl("IPFS_GATEWAY", "https://cloudflare-ipfs.com"),
+        "PINATA_API_URL" => get_env_var_impl("PINATA_API_URL", "https://api.pinata.cloud"),
+        "MAX_CACHE_ITEMS" => get_env_var_impl("MAX_CACHE_ITEMS", "1000"),
+        "MAX_CACHE_SIZE_MB" => get_env_var_impl("MAX_CACHE_SIZE_MB", "20"),
+        "FREE_TIER_CACHE_LIMIT_MB" => get_env_var_impl("FREE_TIER_CACHE_LIMIT_MB", "20"),
+        "STARTER_TIER_CACHE_LIMIT_MB" => get_env_var_impl("STARTER_TIER_CACHE_LIMIT_MB", "50"),
+        "PRO_TIER_CACHE_LIMIT_MB" => get_env_var_impl("PRO_TIER_CACHE_LIMIT_MB", "100"),
+        "BUSINESS_TIER_CACHE_LIMIT_MB" => get_env_var_impl("BUSINESS_TIER_CACHE_LIMIT_MB", "500"),
+        "STARTER_UPGRADE_COST_CYCLES" => get_env_var_impl("STARTER_UPGRADE_COST_CYCLES", "1000000000"),
+        "PRO_UPGRADE_COST_CYCLES" => get_env_var_impl("PRO_UPGRADE_COST_CYCLES", "5000000000"),
+        "BUSINESS_UPGRADE_COST_CYCLES" => get_env_var_impl("BUSINESS_UPGRADE_COST_CYCLES", "15000000000"),
+        "TEST_HTTPBIN_URL" => get_env_var_impl("TEST_HTTPBIN_URL", "https://httpbin.org"),
+        "TEST_JSONPLACEHOLDER_URL" => get_env_var_impl("TEST_JSONPLACEHOLDER_URL", "https://jsonplaceholder.typicode.com"),
+        "TEST_API_IPIFY_URL" => get_env_var_impl("TEST_API_IPIFY_URL", "https://api.ipify.org"),
         _ => default.to_string(),
     }
 }
 
+// Helper function to get environment variables with proper fallback handling
+fn get_env_var_impl(_key: &str, default: &str) -> String {
+    // In a real ICP implementation, this would access environment variables
+    // For now, we return the default value
+    // TODO: Implement proper environment variable access for ICP canisters
+    default.to_string()
+}
+
 // Pinata API configuration
 // NOTE: In production, this should be managed via encrypted secrets
-// For this hackathon MVP, we're using a real JWT from environment
+// For this hackathon MVP, we're using a real JWT directly
 fn get_pinata_jwt() -> String {
-    get_env_var("VITE_PINATA_JWT", "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIyZDhiYzBiNC0xNjllLTQzNzQtOTI5Yy05ZmJhNjEwODNmMTciLCJlbWFpbCI6ImtoYXRyaXNha3NoaTMwMDNAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6IjdjN2FjMjY3YTdhMzU2ZWVmN2Y3Iiwic2NvcGVkS2V5U2VjcmV0IjoiODE2ZjMyZjk4NTFjY2Q1YzZmNjhlNjQzMDA2NjZlZGQ4MzkxMTEzY2RkMDhhMjMzNDdkZmMzY2NhMDNlOTU1NCIsImV4cCI6MTc4Mzc4MTcwOH0.Qv8HE9i-HPBOJ2jvtnrlEGnttG6kIEUQ-SaKz4AznwE")
+    // Your actual Pinata JWT token
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIyZDhiYzBiNC0xNjllLTQzNzQtOTI5Yy05ZmJhNjEwODNmMTciLCJlbWFpbCI6ImtoYXRyaXNha3NoaTMwMDNAZ21haWwuY29tIiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6IjdjN2FjMjY3YTdhMzU2ZWVmN2Y3Iiwic2NvcGVkS2V5U2VjcmV0IjoiODE2ZjMyZjk4NTFjY2Q1YzZmNjhlNjQzMDA2NjZlZGQ4MzkxMTEzY2RkMDhhMjMzNDdkZmMzY2NhMDNlOTU1NCIsImV4cCI6MTc4Mzc4MTcwOH0.Qv8HE9i-HPBOJ2jvtnrlEGnttG6kIEUQ-SaKz4AznwE".to_string()
 }
 
 thread_local! {
@@ -469,7 +510,8 @@ fn put_cache_entry(cid: String, cache_entry: CacheEntry) -> Result<(), String> {
         let mut cache = cache.borrow_mut();
         
         // Check if cache is at capacity
-        if cache.len() >= MAX_CACHE_ITEMS {
+        let (max_cache_items, _) = get_cache_config();
+        if cache.len() >= max_cache_items {
             // Evict the least recently used item
             if let Some(evicted_cid) = evict_lru_item() {
                 if let Some(evicted_entry) = cache.remove(&evicted_cid) {
@@ -583,17 +625,21 @@ fn get_user_tier_info() -> Result<UserTierInfo, String> {
 // Get all available tiers with pricing
 #[ic_cdk::query]
 fn get_available_tiers() -> Vec<TierInfo> {
+    let (free_limit, starter_limit, pro_limit, business_limit) = get_tier_cache_limits();
+    let (starter_cost, pro_cost, business_cost) = get_upgrade_costs();
+    let (free_storage, starter_storage, pro_storage, business_storage) = get_pinata_storage_limits();
+    
     vec![
         TierInfo {
             tier: UserTier::Free,
             name: "Free".to_string(),
-            cache_limit_mb: 20,
-            pinata_storage_gb: 1,
+            cache_limit_mb: (free_limit / (1024 * 1024)) as u32,
+            pinata_storage_gb: (free_storage / (1024 * 1024 * 1024)) as u32,
             pinata_enabled: false,
             price_cycles: 0,
             features: vec![
-                "20MB dCDN cache".to_string(),
-                "1GB Pinata storage".to_string(),
+                format!("{}MB dCDN cache", (free_limit / (1024 * 1024))),
+                format!("{}GB Pinata storage", (free_storage / (1024 * 1024 * 1024))),
                 "Basic content delivery".to_string(),
                 "No IPFS pinning".to_string(),
             ],
@@ -601,13 +647,13 @@ fn get_available_tiers() -> Vec<TierInfo> {
         TierInfo {
             tier: UserTier::Starter,
             name: "Starter".to_string(),
-            cache_limit_mb: 50,
-            pinata_storage_gb: 100,
+            cache_limit_mb: (starter_limit / (1024 * 1024)) as u32,
+            pinata_storage_gb: (starter_storage / (1024 * 1024 * 1024)) as u32,
             pinata_enabled: true,
-            price_cycles: STARTER_UPGRADE_COST,
+            price_cycles: starter_cost,
             features: vec![
-                "50MB dCDN cache".to_string(),
-                "100GB Pinata storage".to_string(),
+                format!("{}MB dCDN cache", (starter_limit / (1024 * 1024))),
+                format!("{}GB Pinata storage", (starter_storage / (1024 * 1024 * 1024))),
                 "IPFS pinning included".to_string(),
                 "Priority support".to_string(),
             ],
@@ -615,13 +661,13 @@ fn get_available_tiers() -> Vec<TierInfo> {
         TierInfo {
             tier: UserTier::Pro,
             name: "Pro".to_string(),
-            cache_limit_mb: 100,
-            pinata_storage_gb: 500,
+            cache_limit_mb: (pro_limit / (1024 * 1024)) as u32,
+            pinata_storage_gb: (pro_storage / (1024 * 1024 * 1024)) as u32,
             pinata_enabled: true,
-            price_cycles: PRO_UPGRADE_COST,
+            price_cycles: pro_cost,
             features: vec![
-                "100MB dCDN cache".to_string(),
-                "500GB Pinata storage".to_string(),
+                format!("{}MB dCDN cache", (pro_limit / (1024 * 1024))),
+                format!("{}GB Pinata storage", (pro_storage / (1024 * 1024 * 1024))),
                 "IPFS pinning included".to_string(),
                 "Advanced analytics".to_string(),
                 "Priority support".to_string(),
@@ -630,13 +676,13 @@ fn get_available_tiers() -> Vec<TierInfo> {
         TierInfo {
             tier: UserTier::Business,
             name: "Business".to_string(),
-            cache_limit_mb: 500,
-            pinata_storage_gb: 2048,
+            cache_limit_mb: (business_limit / (1024 * 1024)) as u32,
+            pinata_storage_gb: (business_storage / (1024 * 1024 * 1024)) as u32,
             pinata_enabled: true,
-            price_cycles: BUSINESS_UPGRADE_COST,
+            price_cycles: business_cost,
             features: vec![
-                "500MB dCDN cache".to_string(),
-                "2TB Pinata storage".to_string(),
+                format!("{}MB dCDN cache", (business_limit / (1024 * 1024))),
+                format!("{}GB Pinata storage", (business_storage / (1024 * 1024 * 1024))),
                 "IPFS pinning included".to_string(),
                 "Advanced analytics".to_string(),
                 "Dedicated support".to_string(),
@@ -771,8 +817,8 @@ fn get_cache_stats() -> (u64, u64, u64) {
         let cache = cache.borrow();
         let total_entries = cache.len() as u64;
         let total_bytes: u64 = cache.values().map(|entry| entry.size).sum();
-        let max_entries = MAX_CACHE_ITEMS as u64;
-        (total_entries, total_bytes, max_entries)
+        let (max_entries, _) = get_cache_config();
+        (total_entries, total_bytes, max_entries as u64)
     })
 }
 
@@ -824,7 +870,8 @@ async fn fetch_from_ipfs(cid: String) -> Result<Vec<u8>, String> {
 // Private async function to fetch content from IPFS using real HTTP outcalls
 async fn fetch_from_ipfs_internal(cid: &str) -> Result<Vec<u8>, String> {
     // Construct the full URL for a public IPFS gateway
-    let url = format!("https://cloudflare-ipfs.com/ipfs/{}", cid);
+    let ipfs_gateway = get_env_var("IPFS_GATEWAY", "https://cloudflare-ipfs.com");
+    let url = format!("{}/ipfs/{}", ipfs_gateway, cid);
     
     ic_cdk::print(format!("Making HTTP outcall to IPFS gateway: {}", url));
     
@@ -873,7 +920,8 @@ async fn fetch_from_ipfs_internal(cid: &str) -> Result<Vec<u8>, String> {
 
 // Upload file content to Pinata using pinFileToIPFS API
 async fn upload_to_pinata(content: &[u8], filename: &str, content_type: &str, pin_content: bool) -> Result<String, String> {
-    let url = "https://api.pinata.cloud/pinning/pinFileToIPFS";
+    let pinata_api_url = get_env_var("PINATA_API_URL", "https://api.pinata.cloud");
+    let url = format!("{}/pinning/pinFileToIPFS", pinata_api_url);
     
     ic_cdk::print(format!("Making HTTP outcall to Pinata API to upload file: {} (pin_content: {})", filename, pin_content));
     
@@ -977,7 +1025,8 @@ async fn upload_to_pinata(content: &[u8], filename: &str, content_type: &str, pi
 
 // Simplified upload function without metadata to avoid JSON parsing issues
 async fn upload_to_pinata_simple(content: &[u8], filename: &str, content_type: &str) -> Result<String, String> {
-    let url = "https://api.pinata.cloud/pinning/pinFileToIPFS";
+    let pinata_api_url = get_env_var("PINATA_API_URL", "https://api.pinata.cloud");
+    let url = format!("{}/pinning/pinFileToIPFS", pinata_api_url);
     
     ic_cdk::print(format!("Making simplified HTTP outcall to Pinata API to upload file: {}", filename));
     
@@ -1188,9 +1237,10 @@ fn test_get_lru_stats() -> (u64, Vec<String>) {
 
 #[ic_cdk::query]
 fn test_get_detailed_cache_stats() -> (u64, u64, u64) {
-    let (total_entries, total_bytes, max_entries) = get_cache_stats();
+    let (total_entries, total_bytes, _) = get_cache_stats();
+    let (max_entries, _) = get_cache_config();
     let (_lru_queue_length, _) = get_lru_queue_stats();
-    (total_entries, total_bytes, max_entries)
+    (total_entries, total_bytes, max_entries as u64)
 }
 
 #[ic_cdk::update]
@@ -1227,8 +1277,9 @@ fn test_lru_eviction_demo() -> Result<String, String> {
     // Clear existing cache first
     clear_cache();
     
-    // Create more cache entries than MAX_CACHE_ITEMS to trigger eviction
-    let num_entries = MAX_CACHE_ITEMS + 5;
+    // Create more cache entries than max_cache_items to trigger eviction
+    let (max_cache_items, _) = get_cache_config();
+    let num_entries = max_cache_items + 5;
     let mut created_cids = Vec::new();
     
     for i in 0..num_entries {
@@ -1249,7 +1300,7 @@ fn test_lru_eviction_demo() -> Result<String, String> {
     let (total_entries, _total_bytes, max_entries) = get_cache_stats();
     let (lru_queue_length, _) = get_lru_queue_stats();
     
-    // Verify that cache size is maintained at MAX_CACHE_ITEMS
+    // Verify that cache size is maintained at max_cache_items
     if total_entries == max_entries && lru_queue_length == max_entries as u64 {
         Ok(format!(
             "LRU eviction demo successful! Created {} entries, cache maintained at {} entries, LRU queue length: {}",
@@ -1352,8 +1403,9 @@ async fn test_http_outcall_setup() -> Result<String, String> {
     ic_cdk::print("🔧 Testing HTTP outcall setup and basic connectivity...");
     
     // Test basic HTTP connectivity to a reliable endpoint
+    let test_httpbin_url = get_env_var("TEST_HTTPBIN_URL", "https://httpbin.org");
     let request = CanisterHttpRequestArgument {
-        url: "https://httpbin.org/get".to_string(),
+        url: format!("{}/get", test_httpbin_url),
         method: HttpMethod::GET,
         headers: vec![
             HttpHeader { name: "User-Agent".to_string(), value: "ICP-CDN-Test/1.0".to_string() },
@@ -1414,8 +1466,9 @@ async fn test_real_http_outcalls() -> Result<String, String> {
     let mut results = Vec::new();
     
     // Test 1: Test basic HTTP connectivity (reliable endpoint)
+    let test_httpbin_url = get_env_var("TEST_HTTPBIN_URL", "https://httpbin.org");
     let request1 = CanisterHttpRequestArgument {
-        url: "https://httpbin.org/get".to_string(),
+        url: format!("{}/get", test_httpbin_url),
         method: HttpMethod::GET,
         headers: vec![
             HttpHeader { name: "User-Agent".to_string(), value: "ICP-CDN-Test/1.0".to_string() },
@@ -1446,8 +1499,9 @@ async fn test_real_http_outcalls() -> Result<String, String> {
     }
     
     // Test 2: Test JSON API endpoint
+    let test_jsonplaceholder_url = get_env_var("TEST_JSONPLACEHOLDER_URL", "https://jsonplaceholder.typicode.com");
     let request2 = CanisterHttpRequestArgument {
-        url: "https://jsonplaceholder.typicode.com/posts/1".to_string(),
+        url: format!("{}/posts/1", test_jsonplaceholder_url),
         method: HttpMethod::GET,
         headers: vec![
             HttpHeader { name: "User-Agent".to_string(), value: "ICP-CDN-Test/1.0".to_string() },
@@ -1477,7 +1531,7 @@ async fn test_real_http_outcalls() -> Result<String, String> {
     
     // Test 3: Test POST request
     let request3 = CanisterHttpRequestArgument {
-        url: "https://httpbin.org/post".to_string(),
+        url: format!("{}/post", test_httpbin_url),
         method: HttpMethod::POST,
         headers: vec![
             HttpHeader { name: "User-Agent".to_string(), value: "ICP-CDN-Test/1.0".to_string() },
@@ -1604,7 +1658,8 @@ fn get_detailed_cache_stats() -> CachePerformanceMetrics {
         cache.values().map(|entry| entry.size).sum()
     });
     
-    let cache_utilization_percent = (total_cache_size_bytes * 100) / MAX_CACHE_SIZE_BYTES;
+    let (_, max_cache_size_bytes) = get_cache_config();
+    let cache_utilization_percent = (total_cache_size_bytes * 100) / max_cache_size_bytes;
     
     CachePerformanceMetrics {
         total_requests,
@@ -1872,7 +1927,8 @@ async fn test_basic_http_connectivity() -> Result<String, String> {
     ic_cdk::print("🔍 Testing basic HTTP connectivity...");
     
     // Test with a simple public API
-    let url = "https://httpbin.org/get";
+    let test_httpbin_url = get_env_var("TEST_HTTPBIN_URL", "https://httpbin.org");
+    let url = format!("{}/get", test_httpbin_url);
     
     let request = CanisterHttpRequestArgument {
         url: url.to_string(),
@@ -1932,10 +1988,14 @@ async fn test_http_outcall_debug() -> Result<String, String> {
     ic_cdk::print("🔍 Testing HTTP outcall debugging...");
     
     // Test multiple endpoints to identify the issue
+    let test_httpbin_url = get_env_var("TEST_HTTPBIN_URL", "https://httpbin.org");
+    let test_ipify_url = get_env_var("TEST_API_IPIFY_URL", "https://api.ipify.org");
+    let test_jsonplaceholder_url = get_env_var("TEST_JSONPLACEHOLDER_URL", "https://jsonplaceholder.typicode.com");
+    
     let test_urls = vec![
-        "https://httpbin.org/get",
-        "https://api.ipify.org?format=json",
-        "https://jsonplaceholder.typicode.com/posts/1"
+        format!("{}/get", test_httpbin_url),
+        format!("{}?format=json", test_ipify_url),
+        format!("{}/posts/1", test_jsonplaceholder_url)
     ];
     
     let mut results = Vec::new();
@@ -1997,7 +2057,8 @@ async fn test_pinata_api_connectivity() -> Result<String, String> {
     ic_cdk::print("🔍 Testing Pinata API connectivity...");
     
     // Test Pinata API with a simple GET request to check authentication
-    let url = "https://api.pinata.cloud/data/testAuthentication";
+    let pinata_api_url = get_env_var("PINATA_API_URL", "https://api.pinata.cloud");
+    let url = format!("{}/data/testAuthentication", pinata_api_url);
     
     let request = CanisterHttpRequestArgument {
         url: url.to_string(),
@@ -2194,10 +2255,12 @@ async fn test_ipfs_gateway_http_calls() -> Result<String, String> {
     // Test with a known IPFS CID (IPFS logo)
     let test_cid = "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG";
     let pinata_gateway = format!("https://{}/ipfs/", get_env_var("VITE_PINATA_GATEWAY", "gateway.pinata.cloud"));
+    let ipfs_gateway_default = get_env_var("IPFS_GATEWAY", "https://cloudflare-ipfs.com");
+    let ipfs_gateway_default_formatted = format!("{}/ipfs/", ipfs_gateway_default);
     let ipfs_gateways = vec![
         "https://ipfs.io/ipfs/",
         &pinata_gateway,
-        "https://cloudflare-ipfs.com/ipfs/"
+        &ipfs_gateway_default_formatted
     ];
     
     let mut results = Vec::new();
@@ -2263,7 +2326,8 @@ async fn test_pinata_with_custom_jwt() -> Result<String, String> {
     ic_cdk::print(format!("📝 Testing upload with custom JWT: {} ({} bytes)", test_filename, test_content.len()));
     
     // Test Pinata API connectivity with custom JWT
-    let url = "https://api.pinata.cloud/data/testAuthentication";
+    let pinata_api_url = get_env_var("PINATA_API_URL", "https://api.pinata.cloud");
+    let url = format!("{}/data/testAuthentication", pinata_api_url);
     
     let request = CanisterHttpRequestArgument {
         url: url.to_string(),

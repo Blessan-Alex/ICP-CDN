@@ -70,8 +70,9 @@ impl CdnClient {
     pub fn default() -> Self {
         // In a real implementation, this would be configured via environment variables
         // For now, we use a placeholder that should be replaced with actual canister ID
+        // TODO: Replace with environment variable configuration
         let default_canister_id = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")
-            .expect("Invalid default canister ID");
+            .expect("Invalid default canister ID - please configure via environment variable");
         Self::new(default_canister_id)
     }
 
@@ -281,8 +282,9 @@ impl CdnCanisterClient {
     pub fn default() -> Self {
         // In a real implementation, this would be configured via environment variables
         // For now, we use a placeholder that should be replaced with actual canister ID
+        // TODO: Replace with environment variable configuration
         let default_canister_id = Principal::from_text("rrkah-fqaaa-aaaaa-aaaaq-cai")
-            .expect("Invalid default canister ID");
+            .expect("Invalid default canister ID - please configure via environment variable");
         Self::new(default_canister_id)
     }
 
